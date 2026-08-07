@@ -1,5 +1,8 @@
 # Tactical Sailing — Long-Period Swell (Batch 13)
 
+For the frozen Batch 13 architecture, API, data-model, tuning, validation, and extension
+manual, start with [`Documentation/DeveloperManual/README.md`](Documentation/DeveloperManual/README.md).
+
 Batch 13 doubles the unified swell period and gives each map-spanning crest finer local
 resolution. The result is a calmer, more legible ocean with fewer phase lines and slightly
 more detailed shelf, island-shadow, and breaking deformation along each line.
