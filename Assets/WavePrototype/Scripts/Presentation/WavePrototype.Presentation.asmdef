@@ -1,0 +1,16 @@
+{
+  "name": "WavePrototype.Presentation",
+  "rootNamespace": "WavePrototype.Presentation",
+  "references": [
+    "WavePrototype.Simulation"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

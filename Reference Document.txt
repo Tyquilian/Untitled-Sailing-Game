@@ -1,0 +1,579 @@
+# Wave System Prototype
+## Project Constitution & Architecture Specification v1.0
+
+---
+
+# Vision
+
+The Wave System Prototype is a deterministic, top-down 2D simulation of ocean waves and their interactions with the environment.
+
+It is **not** intended to become a game on its own.
+
+Its purpose is to validate an architecture capable of supporting future gameplay systems such as sailing, wind, environmental hazards, navigation, and multiplayer.
+
+The long-term vision is:
+
+> **The environment is the primary gameplay system.**
+
+The player does not fight enemies.
+
+The player learns to understand and survive the ocean.
+
+---
+
+# Prototype Goals
+
+The prototype should demonstrate:
+
+- Deterministic wave simulation
+- Approximately 1000 simultaneous wave packets
+- Wave propagation
+- Wave lifetime and energy loss
+- Shoaling in shallow water
+- Breaking waves (whitecaps)
+- Rock interactions
+- Boat movement caused by waves
+- Boat damage caused by breaking waves
+- Stable architecture suitable for long-term expansion
+
+---
+
+# Explicitly Out of Scope
+
+The prototype intentionally excludes:
+
+- Multiplayer
+- AI
+- Combat
+- Networking
+- Save systems
+- Weather simulation
+- Boat wake generation
+- Wave reflections
+- Fancy graphics
+- Audio
+- Procedural terrain generation
+- Production UI
+
+These systems should be possible to add later without redesigning the architecture.
+
+---
+
+# Design Principles
+
+## 1. Simulation over scripting
+
+Behavior should emerge naturally from systems.
+
+Avoid one-off special cases whenever possible.
+
+---
+
+## 2. Objects hold data
+
+Objects own state.
+
+Systems own behavior.
+
+Objects should remain lightweight.
+
+---
+
+## 3. Deterministic by default
+
+Given the same random seed and inputs, the simulation should always produce identical results.
+
+---
+
+## 4. Visuals follow simulation
+
+Rendering represents the simulation.
+
+Rendering never changes the simulation.
+
+---
+
+## 5. Prototype for extensibility
+
+Every system should be replaceable or expandable without rewriting the rest of the project.
+
+---
+
+## 6. The environment is gameplay
+
+The ocean is the challenge.
+
+Boats, cargo, and future mechanics exist to interact with the environment—not replace it.
+
+---
+
+# Simulation Philosophy
+
+The simulation models **moving packets of ocean energy**, not water particles.
+
+Each wave represents a single traveling wave packet.
+
+Wave packets:
+
+- Move
+- Lose energy
+- Change according to depth
+- Affect boats
+- Interact with rocks
+
+Wave packets do **not**:
+
+- Collide with one another
+- Merge
+- Bounce
+- Push one another
+
+Multiple waves may occupy the same space.
+
+Their effects simply overlap.
+
+---
+
+# Primary Simulation Variable
+
+## Energy
+
+Energy is the master simulation quantity.
+
+Every wave owns Energy.
+
+Everything else either creates, destroys, redistributes, or responds to Energy.
+
+Examples:
+
+Storms create Energy.
+
+Breaking dissipates Energy.
+
+Rocks remove Energy.
+
+Boats receive forces derived from Energy.
+
+Amplitude, steepness, and other properties are secondary values derived from Energy and environmental conditions.
+
+Energy should remain the single primary state variable.
+
+---
+
+# World Model
+
+The simulation consists of only a few fundamental object types.
+
+## Environment
+
+Static world information.
+
+Contains:
+
+- Depth Field
+- Rock Field
+- Land Field
+
+The Environment answers questions.
+
+It does not modify simulation objects.
+
+---
+
+## Wave Sources
+
+Objects capable of generating waves.
+
+Examples:
+
+- Storms
+- Player actions
+- Scripted events
+
+Every source creates the same type of object:
+
+A Wave.
+
+---
+
+## Waves
+
+Moving packets of ocean energy.
+
+Represent the primary simulation entities.
+
+---
+
+## Boats
+
+Objects affected by waves.
+
+Boats never modify waves directly.
+
+---
+
+## Objectives
+
+Gameplay targets.
+
+Examples:
+
+- Reach destination
+- Deliver cargo
+
+Objectives remain independent of the simulation.
+
+---
+
+## Debug Tools
+
+Developer-only tools for inspecting and controlling the simulation.
+
+---
+
+# Data Ownership
+
+Every piece of data has exactly one owner.
+
+Objects own only their own state.
+
+Objects should avoid storing references to one another whenever possible.
+
+Examples:
+
+A Wave does not know which Boat it is affecting.
+
+A Boat does not know which Waves currently exist.
+
+The Environment does not own Waves.
+
+Systems determine interactions.
+
+Objects only store state.
+
+---
+
+# Wave Data Model
+
+Each Wave owns only persistent state.
+
+## Stored State
+
+- Position
+- TravelDirection
+- Energy
+- Speed
+- PacketLength
+- CrestLength
+- WaveState
+
+This should remain intentionally small.
+
+---
+
+## Derived State
+
+Calculated every update.
+
+Examples:
+
+- Amplitude
+- Steepness
+- Whitecap Risk
+- Wave Force
+
+Derived state should never be permanently stored.
+
+---
+
+## Temporary State
+
+Exists only during simulation.
+
+Examples:
+
+- Collision results
+- Energy transfers
+- Boat forces
+- Events
+
+Temporary state should never become object data.
+
+---
+
+# Boat Data Model
+
+Boats own:
+
+- Position
+- Velocity
+- Heading
+- Health
+- Mass
+
+Boats respond to the simulation.
+
+They do not drive it.
+
+---
+
+# Systems
+
+Systems own behavior.
+
+Objects own data.
+
+## Wave Spawn System
+
+Creates Waves from Wave Sources.
+
+---
+
+## Wave Simulation System
+
+Updates every Wave.
+
+Responsible for:
+
+- Movement
+- Speed
+- Energy
+- Shoaling
+- Breaking
+
+---
+
+## Environment System
+
+Provides environmental information.
+
+Examples:
+
+- Water depth
+- Rocks
+- Land
+
+Never changes Waves directly.
+
+---
+
+## Wave Interaction System
+
+Determines interactions between:
+
+- Waves
+- Boats
+- Environment
+
+Produces simulation events.
+
+---
+
+## Boat System
+
+Moves Boats.
+
+Consumes wave interactions.
+
+Calculates damage.
+
+Never modifies Waves directly.
+
+---
+
+## Rendering System
+
+Displays simulation.
+
+Owns:
+
+- Sprites
+- Particles
+- Shaders
+- Debug visualization
+
+Rendering never changes gameplay.
+
+---
+
+# Simulation Cycle
+
+Every simulation step follows three conceptual phases.
+
+## 1. Observe
+
+Sample world state.
+
+Examples:
+
+- Depth
+- Nearby boats
+- Nearby rocks
+
+Nothing changes.
+
+---
+
+## 2. Decide
+
+Calculate state changes.
+
+Examples:
+
+- Speed changes
+- Energy loss
+- Breaking
+- Boat forces
+
+Nothing changes yet.
+
+---
+
+## 3. Apply
+
+Apply all calculated changes.
+
+Move Waves.
+
+Update Boats.
+
+Queue Events.
+
+Remove expired Waves.
+
+No system should modify simulation state during Observe or Decide.
+
+---
+
+# Event Philosophy
+
+Objects should never manipulate each other directly.
+
+Systems generate events.
+
+Examples:
+
+- WaveStartedBreaking
+- WaveHitRock
+- WaveHitBoat
+- BoatDamaged
+- WaveExpired
+
+Events reduce coupling between systems.
+
+---
+
+# Unity Philosophy
+
+Unity is an implementation tool—not the architecture.
+
+The architecture exists independently of Unity.
+
+Managers should coordinate systems.
+
+Rendering should remain separate from simulation.
+
+GameObjects should exist because the architecture requires them—not because Unity encourages them.
+
+---
+
+# Prototype Gameplay
+
+The player acts as a tester.
+
+Available tools include:
+
+- Spawn Waves
+- Spawn Boats
+- Modify Wave Sources
+- Place Rocks
+- Modify Depth
+- Pause
+- Step simulation one frame
+- Inspect simulation state
+
+The prototype exists to validate systems—not provide progression.
+
+---
+
+# Future Direction
+
+Future systems should extend the simulation rather than replace it.
+
+Potential additions include:
+
+Wind
+
+↓
+
+Sailing
+
+↓
+
+Cargo
+
+↓
+
+Navigation
+
+↓
+
+Storms
+
+↓
+
+Multiplayer
+
+↓
+
+Living Ocean
+
+Every future mechanic should interact with the existing simulation through systems.
+
+---
+
+# Simulation Vocabulary
+
+**Wave** — A moving packet of ocean energy.
+
+**Energy** — The master simulation quantity governing wave behavior.
+
+**Wave Source** — Any system capable of creating Waves.
+
+**Environment** — Static world information describing terrain and water.
+
+**Depth Field** — A function that returns water depth at a position.
+
+**Wave State** — The current behavioral mode of a Wave.
+
+**Derived State** — Information calculated from stored state each update.
+
+**Temporary State** — Information that exists only during a simulation step.
+
+**Event** — A message produced by one system and consumed by another.
+
+---
+
+# Success Criteria
+
+The prototype is successful when:
+
+- The simulation remains deterministic.
+- Approximately 1000 active Waves run smoothly.
+- Boats respond believably to Waves.
+- Shoaling and breaking occur naturally.
+- Rocks create meaningful hazards.
+- Systems remain independent and understandable.
+- New mechanics can be added without redesigning existing architecture.
+
+---
+
+# Guiding Principle
+
+Whenever a design decision is unclear, ask:
+
+> **Does this strengthen the simulation, or does it add a special case?**
+
+Choose the solution that strengthens the simulation.
+
+If every mechanic can be expressed as an interaction between simple systems operating on shared state, the architecture is moving in the right direction.

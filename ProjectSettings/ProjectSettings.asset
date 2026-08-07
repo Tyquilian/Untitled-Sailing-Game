@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!129 &1
+PlayerSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 28
+  productGUID: c637b8e7652c48f4b6e37957bfd67d32
+  AndroidProfiler: 0
+  companyName: Wave Lab
+  productName: Tactical Sailing - Wave Prototype
+  defaultScreenWidth: 1600
+  defaultScreenHeight: 900
+  defaultScreenWidthWeb: 960
+  defaultScreenHeightWeb: 600
+  m_ActiveColorSpace: 0
+  runInBackground: 1
+  usePlayerLog: 1
+  visibleInBackground: 1
+  allowFullscreenSwitch: 1
+  fullscreenMode: 3
+  resizableWindow: 1
+  useFlipModelSwapchain: 1
+  scriptingBackend:
+    Standalone: 0
+  managedStrippingLevel:
+    Standalone: 1
+  applicationIdentifier:
+    Standalone: com.wavelab.tacticalsailing
+  activeInputHandler: 0
+  forceSingleInstance: 0
+  useDeterministicCompilation: 1
+  additionalCompilerArguments: {}
+  scriptingDefineSymbols: {}

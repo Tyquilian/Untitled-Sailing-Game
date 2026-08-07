@@ -1,0 +1,19 @@
+{
+  "name": "WavePrototype.Editor",
+  "rootNamespace": "WavePrototype.Editor",
+  "references": [
+    "WavePrototype.Simulation",
+    "WavePrototype.Presentation"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

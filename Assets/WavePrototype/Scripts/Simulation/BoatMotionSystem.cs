@@ -1,0 +1,195 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace WavePrototype.Simulation
+{
+    internal sealed class BoatMotionSystem
+    {
+        private readonly SimulationConfig config;
+        private readonly IOceanEnvironment environment;
+
+        public BoatMotionSystem(SimulationConfig config, IOceanEnvironment environment)
+        {
+            this.config = config;
+            this.environment = environment;
+        }
+
+        public void Decide(IReadOnlyList<BoatData> boats, List<BoatDecision> decisions,
+            BoatInputBuffer inputBuffer)
+        {
+            float dt = config.FixedDeltaTime;
+            for (int i = 0; i < boats.Count; i++)
+            {
+                BoatData boat = boats[i];
+                BoatDecision decision = decisions[i];
+                BoatControl control = inputBuffer.GetControl(boat.Id);
+                Vector2 forward = SimulationMath.HeadingVector(boat.Heading);
+
+                float windEfficiency = GetWindEfficiency(boat.Heading);
+                if (control.Throttle >= 0f)
+                {
+                    float fadeRange = Mathf.Max(0.01f, config.BoatCruisePropulsionFadeRange);
+                    float fadeStart = Mathf.Max(0f, config.BoatCruiseSpeed - fadeRange);
+                    float speedIntoFade = Mathf.InverseLerp(fadeStart, config.BoatCruiseSpeed, boat.Velocity.magnitude);
+                    float propulsionHeadroom = 1f - Mathf.SmoothStep(0f, 1f, speedIntoFade);
+                    decision.Force += forward * config.SailingForce * control.Throttle * windEfficiency * propulsionHeadroom;
+                }
+                else
+                {
+                    decision.Force -= boat.Velocity * (-control.Throttle) * boat.Mass * 3.4f;
+                    decision.Force += forward * config.SailingForce * control.Throttle * 0.18f;
+                }
+
+                float turnAuthority = Mathf.Lerp(0.32f, 1f, Mathf.Clamp01(boat.Velocity.magnitude / 5f));
+                decision.HeadingImpulse += control.Steering * config.BoatTurnRate * turnAuthority;
+                decision.Heading = boat.Heading + decision.HeadingImpulse * dt;
+                Vector2 decidedForward = SimulationMath.HeadingVector(decision.Heading);
+                Vector2 decidedSide = new Vector2(-decidedForward.y, decidedForward.x);
+                decision.Velocity = boat.Velocity + decision.Force / Mathf.Max(0.1f, boat.Mass) * dt;
+                float forwardSpeed = Vector2.Dot(decision.Velocity, decidedForward);
+                float sideSpeed = Vector2.Dot(decision.Velocity, decidedSide) * Mathf.Exp(-config.BoatLateralDrag * dt);
+                decision.Velocity = decidedForward * forwardSpeed + decidedSide * sideSpeed;
+                decision.Velocity *= Mathf.Exp(-config.BoatLinearDrag * dt);
+
+                float speed = decision.Velocity.magnitude;
+                if (speed > config.BoatCruiseSpeed && config.BoatSurfExcessDecay > 0f)
+                {
+                    float excess = speed - config.BoatCruiseSpeed;
+                    float decayedSpeed = config.BoatCruiseSpeed + excess * Mathf.Exp(-config.BoatSurfExcessDecay * dt);
+                    decision.Velocity *= decayedSpeed / speed;
+                }
+                decision.Velocity = Vector2.ClampMagnitude(decision.Velocity,
+                    Mathf.Max(config.BoatCruiseSpeed, config.BoatSurfSpeedCap));
+                decision.Position = boat.Position + decision.Velocity * dt;
+
+                Vector2 half = config.WorldHalfExtents;
+                bool outside = Mathf.Abs(decision.Position.x) > half.x || Mathf.Abs(decision.Position.y) > half.y;
+                if (outside || environment.IsLand(decision.Position))
+                {
+                    decision.Collision = SimulationEventType.BoatGrounded;
+                    decision.Damage += 0.12f + boat.Velocity.magnitude * 0.16f;
+                    decision.Position = boat.Position;
+                    decision.Velocity *= -0.08f;
+                }
+                else if (ResolveRockMotion(boat.Position, decision.Velocity, dt,
+                    out Vector2 resolvedPosition, out Vector2 resolvedVelocity, out float impactDamage))
+                {
+                    decision.Collision = SimulationEventType.BoatHitRock;
+                    decision.Damage += impactDamage;
+                    decision.Position = resolvedPosition;
+                    decision.Velocity = resolvedVelocity;
+                }
+                decisions[i] = decision;
+            }
+        }
+
+        public float GetWindEfficiency(float heading)
+        {
+            float alignment = Vector2.Dot(SimulationMath.HeadingVector(heading), config.WindDirection.normalized);
+            float favorable = Mathf.Pow(Mathf.Clamp01((alignment + 1f) * 0.5f), 0.72f);
+            return 0.38f + favorable * 0.62f;
+        }
+
+        public Vector2 FindNearbyWater(Vector2 origin)
+        {
+            for (int ring = 1; ring < 30; ring++)
+            {
+                for (int step = 0; step < 16; step++)
+                {
+                    float radians = step * Mathf.PI * 2f / 16f;
+                    Vector2 candidate = origin + new Vector2(Mathf.Cos(radians), Mathf.Sin(radians)) * ring;
+                    if (!environment.IsLand(candidate) && environment.FindRock(candidate, 0.8f) < 0)
+                        return candidate;
+                }
+            }
+            return Vector2.zero;
+        }
+
+        private bool ResolveRockMotion(Vector2 start, Vector2 initialVelocity, float dt,
+            out Vector2 resolvedPosition, out Vector2 resolvedVelocity, out float damage)
+        {
+            const int maximumContacts = 4;
+            const float minimumTime = 0.000001f;
+            resolvedPosition = start;
+            resolvedVelocity = initialVelocity;
+            damage = 0f;
+            float remainingTime = dt;
+            bool hitAnyRock = false;
+
+            for (int contact = 0; contact < maximumContacts && remainingTime > minimumTime; contact++)
+            {
+                Vector2 end = resolvedPosition + resolvedVelocity * remainingTime;
+                if (!TryFindEarliestRockHit(resolvedPosition, end, out int rockIndex, out float hitFraction))
+                {
+                    resolvedPosition = end;
+                    break;
+                }
+
+                RockData rock = environment.Rocks[rockIndex];
+                Vector2 segment = end - resolvedPosition;
+                Vector2 contactPoint = resolvedPosition + segment * hitFraction;
+                Vector2 normal = contactPoint - rock.Position;
+                if (normal.sqrMagnitude < 0.000001f)
+                    normal = resolvedVelocity.sqrMagnitude > 0.000001f ? -resolvedVelocity.normalized : Vector2.right;
+                else
+                    normal.Normalize();
+
+                float expandedRadius = rock.Radius + config.BoatCollisionRadius;
+                resolvedPosition = rock.Position + normal * (expandedRadius + config.RockContactSkin);
+                float normalSpeed = Vector2.Dot(resolvedVelocity, normal);
+                float impactSpeed = Mathf.Max(0f, -normalSpeed);
+                Vector2 tangentVelocity = resolvedVelocity - normal * normalSpeed;
+                if (normalSpeed < 0f)
+                    resolvedVelocity = tangentVelocity * config.RockTangentialRetention
+                        - normal * normalSpeed * config.RockImpactRestitution;
+                else
+                    resolvedVelocity = tangentVelocity * config.RockTangentialRetention + normal * normalSpeed;
+
+                damage += 0.22f + impactSpeed * 0.34f;
+                hitAnyRock = true;
+                remainingTime *= 1f - hitFraction;
+            }
+            return hitAnyRock;
+        }
+
+        private bool TryFindEarliestRockHit(Vector2 start, Vector2 end, out int rockIndex, out float hitFraction)
+        {
+            rockIndex = -1;
+            hitFraction = float.MaxValue;
+            Vector2 segment = end - start;
+            float segmentLengthSquared = segment.sqrMagnitude;
+            if (segmentLengthSquared < 0.00000001f) return false;
+
+            IReadOnlyList<RockData> rocks = environment.Rocks;
+            for (int i = 0; i < rocks.Count; i++)
+            {
+                RockData rock = rocks[i];
+                float expandedRadius = rock.Radius + config.BoatCollisionRadius;
+                Vector2 offset = start - rock.Position;
+                float distanceFromSurface = offset.sqrMagnitude - expandedRadius * expandedRadius;
+                float approach = Vector2.Dot(offset, segment);
+                float candidate;
+                if (distanceFromSurface <= 0f)
+                {
+                    if (approach >= 0f) continue;
+                    candidate = 0f;
+                }
+                else
+                {
+                    if (approach >= 0f) continue;
+                    float discriminant = approach * approach - segmentLengthSquared * distanceFromSurface;
+                    if (discriminant < 0f) continue;
+                    candidate = (-approach - Mathf.Sqrt(discriminant)) / segmentLengthSquared;
+                    if (candidate < 0f || candidate > 1f) continue;
+                }
+
+                if (candidate < hitFraction)
+                {
+                    hitFraction = candidate;
+                    rockIndex = i;
+                }
+            }
+            return rockIndex >= 0;
+        }
+    }
+}
