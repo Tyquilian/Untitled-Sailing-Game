@@ -52,5 +52,6 @@ Player modes: `-smoketest`, `-frametest`, `-capturepreview`.
 4. Batch 17: bounded ordered storm/cross-sea event.
 5. Product gate: deeper environmental sandbox or minimal cargo/damage/landmark game.
 
-Read `Documentation/DeveloperManual/README.md` only when detailed Batch 13 implementation
-reference is needed.
+The human developer manual was intentionally removed from the workspace after archival in
+Git commit `7172c9c`. Use source, focused batch records, and this compact context for current
+work; consult that historical commit only when the archived manual is explicitly requested.
