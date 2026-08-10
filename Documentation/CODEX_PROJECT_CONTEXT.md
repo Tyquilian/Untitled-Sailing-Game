@@ -1,7 +1,7 @@
 # Codex Working Context
 
 This is a compact working reference, not the human developer manual. Current baseline:
-Batch 14 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
+Batch 15 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
 
 ## Non-negotiable rules
 
@@ -28,6 +28,11 @@ Batch 14 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
 - Immutable arcade-skiff and heavy-cutter profiles. The skiff preserves Batch 13 values.
 - Heavy cutter: mass 24, 6.2 x 2.8 hull, 1.5 collision radius, five hull samples.
 - Wave and land checks use hull samples but still contribute once per crest/boat identity.
+- A rebuilt-per-tick deterministic grid culls wave-section candidates for boats and floating
+  objects. The static rock grid also serves swept boat contact. Exact equations and original
+  wave/segment/rock ordering remain authoritative.
+- `EnableSpatialBroadphase=false` selects the retained brute-force reference path. Spatial
+  execution settings are deliberately excluded from the state hash.
 
 ## Known hazards
 
@@ -37,8 +42,14 @@ Batch 14 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
   simulation to change startup tuning.
 - Recorded boat controls retain the latest 65,536 commands by default; configure nonpositive
   capacity for unlimited diagnostic replay or disable recording when it is unnecessary.
-- 1,000 fronts have measured 30.8-51.6 ticks/s on the reference PC; 10k measures only
-  2.2-3.9 ticks/s. Spatial scheduling remains required before major scale growth.
+- A dense per-map wave grid is allocated at simulation construction and reuses cell/query
+  containers. Out-of-bounds sections clamp to boundary cells, producing false positives but
+  never false negatives for in-bounds entities.
+- 1,000 and 10,000 fronts remain stress/diagnostic profiles. Broadphase removes distant
+  entity-interaction checks, but propagation still updates every section every tick; spatial
+  culling alone is not multi-rate simulation or world streaming.
+- Batch 15 same-process samples measured spatial/brute CPU time at 2.766/3.672s for
+  320 fronts over 300 ticks and 3.297/4.531s for 1,000 fronts over 120 ticks.
 - Land and waves use representative hull samples; rocks still use swept profile circles rather
   than oriented hull polygons.
 - Same-build/platform determinism only; replay contains boat controls, not debug operations.
@@ -46,16 +57,15 @@ Batch 14 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
 ## Commands
 
 Validation execute method: `WavePrototype.Editor.BatchBuild.Validate`.
-Current build execute method: `WavePrototype.Editor.BatchBuild.BuildBatch14`.
+Current build execute method: `WavePrototype.Editor.BatchBuild.BuildBatch15`.
 Player modes: `-smoketest`, `-frametest`, `-capturepreview`.
 
 ## Roadmap
 
-1. Batch 15: deterministic spatial broadphase for wave sections and boat/rock candidates.
-2. Batch 16: gradual exploration-scale map and phase count derived from span/period.
-3. Batch 17: bounded ordered storm/cross-sea event.
-4. Later vessel pass: more profiles only after the two-hull playtest establishes useful scale.
-5. Product gate: deeper environmental sandbox or minimal cargo/damage/landmark game.
+1. Batch 16: gradual exploration-scale map and phase count derived from span/period.
+2. Batch 17: bounded ordered storm/cross-sea event.
+3. Later vessel pass: more profiles only after the two-hull playtest establishes useful scale.
+4. Product gate: deeper environmental sandbox or minimal cargo/damage/landmark game.
 
 The human developer manual was intentionally removed from the workspace after archival in
 Git commit `7172c9c`. Use source, focused batch records, and this compact context for current

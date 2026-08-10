@@ -1,13 +1,12 @@
-# Tactical Sailing — Vessel Profiles (Batch 14)
+# Tactical Sailing — Deterministic Spatial Broadphase (Batch 15)
 
-Batch 14 adds the first real vessel-scale contrast without adding a player mechanic. The
-original arcade skiff remains the default and retains its Batch 13 handling. A debug-selectable
-heavy cutter has a larger collision footprint, five hull interaction samples, greater inertia,
-slower turning, lower speed limits, and greater breaker/grounding resistance.
+Batch 15 prepares the sandbox for gradual ocean expansion by culling distant interaction
+candidates. It does not change sailing, wave tuning, map content, vessel profiles, or event
+order. A retained brute-force reference path is compared against the spatial path tick by tick.
 
 ## Run the latest build
 
-Open `Builds/Batch14/TacticalSailingBatch14.exe` and keep the complete `Batch14` directory
+Open `Builds/Batch15/TacticalSailingBatch15.exe` and keep the complete `Batch15` directory
 together. Earlier batch builds remain preserved.
 
 The source project targets Unity `6000.3.2f1`. Open
@@ -39,44 +38,40 @@ The source project targets Unity `6000.3.2f1`. Open
 The `Y` switch and the vessel-spawn controls are comparison tools, not proposed gameplay
 actions. With `F3` enabled, orange points show each vessel's authoritative hull samples.
 
-## Batch 14 changes
+## Batch 15 changes
 
-- Adds immutable `ArcadeSkiff` and `HeavyCutter` startup profiles.
-- Preserves the former boat values as the skiff profile and default for every initial boat.
-- Applies profile mass, propulsion, turn rate, cruise/surf limits, drag, wave response, yaw,
-  damage resistance, dimensions, and collision radius through existing systems.
-- Samples the cutter at center, bow, stern, port, and starboard for waves and land while
-  preserving one impulse per crest identity.
-- Uses vessel collision radius for swept rocks and floating-object contact.
-- Scales rendered hulls from profile dimensions and exposes debug sample points.
-- Corrects local wave-density diagnostics to count a front when an active crest section is
-  visible, even if the parent front center is outside the view.
+- Rebuilds a deterministic dense-grid index over active predicted crest sections each tick.
+- Culls distant wave/boat and wave/floating-object pairs before running the unchanged exact
+  interaction equations in original wave/segment order.
+- Reuses the static rock grid for deterministic swept-contact candidates while preserving a
+  brute-force fallback for custom environments.
+- Retains query buffers and cell lists across ticks and exposes culling counts in the F3
+  diagnostics overlay.
+- Adds an immutable startup switch for broadphase/brute-force comparison without including
+  execution policy in authoritative state hashes.
+- Preserves the Batch 14 arcade-skiff and heavy-cutter comparison tools and behavior.
 
 ## Validation summary
 
 Reference editor validation passed on 2026-08-10:
 
 - deterministic reference run: 900/900 matching ticks;
-- skiff/heavy mass: `7.2 / 24.0`;
-- 90-tick skiff/heavy speed: `10.45 / 7.47`;
-- skiff/heavy turn response: `66.6° / 37.7°`;
-- broad edge contact: skiff `0`, heavy `1`;
-- centered heavy contact: exactly `1` event despite five samples;
-- broad grounding: skiff `0`, heavy `1`;
-- skiff/heavy breaker damage: `5.882 / 3.193`;
-- skiff/heavy breaker displacement: `2.79 / 1.51`;
-- 20-front playable benchmark: `2133.3` ticks/second;
-- 320-front secondary benchmark: `144.4` ticks/second;
-- 1,000-front stress benchmark: `49.4` ticks/second; and
-- 10,000-front diagnostic: `3.7` ticks/second for 30 ticks.
+- broadphase/brute-force comparison: 480/480 identical ticks;
+- wave/boat candidate checks: `8,822 / 620,460` potential;
+- floating-object candidate checks: `33,030 / 4,787,580` potential;
+- warmed 240-tick spatial probe: zero generation-0 collections;
+- same-process 320-front sample: `2.766s` spatial / `3.672s` brute force;
+- same-process 1,000-front sample: `3.297s` spatial / `4.531s` brute force;
+- deterministic reference run: unchanged `FAB08900B346EEB8` final hash; and
+- all prior wave, vessel, collision, replay, source, target, and object regressions passed.
 
-See `BATCH14_VESSEL_PROFILES.md` for the focused design record and
+See `BATCH15_DETERMINISTIC_SPATIAL_BROADPHASE.md` for the focused design record and
 `Documentation/CODEX_PROJECT_CONTEXT.md` for the compact working context.
 
 Build from PowerShell:
 
 ```powershell
-& 'C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.com' -batchmode -nographics -projectPath . -executeMethod WavePrototype.Editor.BatchBuild.BuildBatch14 -quit -logFile build-batch14.log
+& 'C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.com' -batchmode -nographics -projectPath . -executeMethod WavePrototype.Editor.BatchBuild.BuildBatch15 -quit -logFile build-batch15.log
 ```
 
 The packaged player also accepts `-smoketest`, `-frametest`, and `-capturepreview`.
@@ -84,6 +79,6 @@ The preview mode writes separate skiff, heavy-cutter, and full-map PNGs beside t
 
 ## Playtest question
 
-Does the cutter feel heavier without becoming inert, and do broad waves pass beneath it
-naturally until breaking water becomes consequential? Compare both hulls with `Y`, then use
-`Q` and `Shift + Q` around the continental and insular shelves.
+Does Batch 15 feel indistinguishable from Batch 14 during ordinary play? With F3 enabled,
+watch the SPACE and GRID counters while moving through swell, wreckage, and rock clusters.
+Any behavioral difference is a regression rather than an intended tuning change.

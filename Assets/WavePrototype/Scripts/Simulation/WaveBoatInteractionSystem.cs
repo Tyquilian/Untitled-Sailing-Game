@@ -6,6 +6,14 @@ namespace WavePrototype.Simulation
     internal sealed class WaveBoatInteractionSystem
     {
         private readonly SimulationConfig config;
+        private readonly List<WaveSectionReference> spatialCandidates =
+            new List<WaveSectionReference>(256);
+        private readonly Dictionary<long, ulong> candidateSegmentMasks =
+            new Dictionary<long, ulong>(128);
+
+        public int ExactSegmentChecks { get; private set; }
+        public int PotentialSegmentChecks { get; private set; }
+        public int CandidatePairCount => candidateSegmentMasks.Count;
 
         public WaveBoatInteractionSystem(SimulationConfig config)
         {
@@ -14,10 +22,41 @@ namespace WavePrototype.Simulation
 
         public void Accumulate(IReadOnlyList<WaveData> waves,
             IReadOnlyList<WaveDecision> waveDecisions, IReadOnlyList<BoatData> boats,
-            List<BoatDecision> boatDecisions, List<SimulationEvent> pendingEvents)
+            List<BoatDecision> boatDecisions, List<SimulationEvent> pendingEvents,
+            WaveSectionSpatialIndex spatialIndex)
         {
             boatDecisions.Clear();
             for (int i = 0; i < boats.Count; i++) boatDecisions.Add(default);
+            ExactSegmentChecks = 0;
+            PotentialSegmentChecks = 0;
+            candidateSegmentMasks.Clear();
+
+            for (int waveIndex = 0; waveIndex < waves.Count; waveIndex++)
+            {
+                WaveSegmentDecision[] segments = waveDecisions[waveIndex].Segments;
+                if (segments != null) PotentialSegmentChecks += segments.Length * boats.Count;
+            }
+
+            if (config.EnableSpatialBroadphase)
+            {
+                for (int boatIndex = 0; boatIndex < boats.Count; boatIndex++)
+                {
+                    BoatData boat = boats[boatIndex];
+                    VesselProfileDefinition profile = config.GetVesselProfile(boat.Profile);
+                    float radius = spatialIndex.MaximumBoatContactRadius +
+                                   profile.MaximumHullSampleDistance;
+                    spatialIndex.Query(boat.Position, radius, spatialCandidates);
+                    for (int candidate = 0; candidate < spatialCandidates.Count; candidate++)
+                    {
+                        WaveSectionReference reference = spatialCandidates[candidate];
+                        long key = PairKey(reference.WaveIndex, boatIndex);
+                        ulong bit = reference.SegmentIndex < 64
+                            ? 1UL << reference.SegmentIndex : ulong.MaxValue;
+                        candidateSegmentMasks.TryGetValue(key, out ulong mask);
+                        candidateSegmentMasks[key] = mask | bit;
+                    }
+                }
+            }
 
             float dt = config.FixedDeltaTime;
             for (int waveIndex = 0; waveIndex < waves.Count; waveIndex++)
@@ -33,12 +72,20 @@ namespace WavePrototype.Simulation
 
                 for (int boatIndex = 0; boatIndex < boats.Count; boatIndex++)
                 {
+                    ulong candidateMask = ulong.MaxValue;
+                    if (config.EnableSpatialBroadphase &&
+                        !candidateSegmentMasks.TryGetValue(PairKey(waveIndex, boatIndex),
+                            out candidateMask))
+                        continue;
                     BoatData boat = boats[boatIndex];
                     VesselProfileDefinition profile = config.GetVesselProfile(boat.Profile);
                     int bestSegment = -1;
                     float bestNormalizedDistance = 1f;
                     for (int segmentIndex = 0; segmentIndex < segments.Length; segmentIndex++)
                     {
+                        if (config.EnableSpatialBroadphase && segmentIndex < 64 &&
+                            (candidateMask & (1UL << segmentIndex)) == 0) continue;
+                        ExactSegmentChecks++;
                         WaveSegmentDecision segmentDecision = segmentDecisions[segmentIndex];
                         if (!segmentDecision.Active) continue;
                         Vector2 direction = segmentDecision.Direction;
@@ -113,5 +160,8 @@ namespace WavePrototype.Simulation
                 }
             }
         }
+
+        private static long PairKey(int waveIndex, int boatIndex)
+            => ((long)(uint)waveIndex << 32) | (uint)boatIndex;
     }
 }

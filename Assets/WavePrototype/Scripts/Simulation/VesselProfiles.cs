@@ -72,6 +72,17 @@ namespace WavePrototype.Simulation
             }
         }
 
+        public float MaximumHullSampleDistance
+        {
+            get
+            {
+                float maximum = 0f;
+                for (int sample = 0; sample < Mathf.Max(1, HullSampleCount); sample++)
+                    maximum = Mathf.Max(maximum, GetHullSampleOffset(sample).magnitude);
+                return maximum;
+            }
+        }
+
         public static VesselProfileDefinition ArcadeSkiff => new VesselProfileDefinition(
             VesselProfileId.ArcadeSkiff,
             mass: 7.2f,

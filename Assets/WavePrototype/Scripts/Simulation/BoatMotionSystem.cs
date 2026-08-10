@@ -7,6 +7,11 @@ namespace WavePrototype.Simulation
     {
         private readonly SimulationConfig config;
         private readonly IOceanEnvironment environment;
+        private readonly List<int> rockCandidates = new List<int>(64);
+
+        public int RockQueryCount { get; private set; }
+        public int RockCandidateChecks { get; private set; }
+        public int RockPotentialChecks { get; private set; }
 
         public BoatMotionSystem(SimulationConfig config, IOceanEnvironment environment)
         {
@@ -18,6 +23,9 @@ namespace WavePrototype.Simulation
             BoatInputBuffer inputBuffer)
         {
             float dt = config.FixedDeltaTime;
+            RockQueryCount = 0;
+            RockCandidateChecks = 0;
+            RockPotentialChecks = 0;
             for (int i = 0; i < boats.Count; i++)
             {
                 BoatData boat = boats[i];
@@ -190,8 +198,24 @@ namespace WavePrototype.Simulation
             if (segmentLengthSquared < 0.00000001f) return false;
 
             IReadOnlyList<RockData> rocks = environment.Rocks;
-            for (int i = 0; i < rocks.Count; i++)
+            RockQueryCount++;
+            RockPotentialChecks += rocks.Count;
+            IRockSpatialQuery spatial = config.EnableSpatialBroadphase
+                ? environment as IRockSpatialQuery : null;
+            bool useSpatial = spatial != null;
+            if (useSpatial)
             {
+                float expansion = collisionRadius + spatial.MaximumRockRadius;
+                Vector2 padding = Vector2.one * expansion;
+                spatial.QueryRockIndices(Vector2.Min(start, end) - padding,
+                    Vector2.Max(start, end) + padding, rockCandidates);
+            }
+
+            int candidateCount = useSpatial ? rockCandidates.Count : rocks.Count;
+            for (int candidateIndex = 0; candidateIndex < candidateCount; candidateIndex++)
+            {
+                int i = useSpatial ? rockCandidates[candidateIndex] : candidateIndex;
+                RockCandidateChecks++;
                 RockData rock = rocks[i];
                 float expandedRadius = rock.Radius + collisionRadius;
                 Vector2 offset = start - rock.Position;

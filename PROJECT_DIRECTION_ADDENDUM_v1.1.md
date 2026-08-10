@@ -89,7 +89,15 @@ The environment is the central gameplay system. Waves, bathymetry, islands, reef
 8. Keep analytic deep-water generation on hold while persistent discrete streams are
    evaluated. Analytic generation may later feed the source boundary without replacing
    segmented local authority.
-9. Return to player-facing environmental development; further architecture work must be justified by a concrete limitation. The 10,000-front result justifies a future spatial interest/multi-rate scheduling experiment if world size continues to grow.
+9. Return to player-facing environmental development; further architecture work must be
+   justified by a concrete limitation. Batch 15 addresses spatial interaction candidates.
+   Reduced-rate propagation or world streaming remains deferred unless measured map growth
+   demonstrates that all-section fixed-tick propagation is the next material limit.
+10. Batch 15 supplies deterministic spatial candidate culling for wave/boat,
+    wave/floating-object, and swept boat/rock interactions. It deliberately preserves the
+    brute-force reference path and exact ordered interaction equations. This clears the way
+    for a measured map expansion, but does not by itself authorize simulation streaming or
+    reduced-rate wave propagation.
 
 ## Architectural principles retained from v1.0
 

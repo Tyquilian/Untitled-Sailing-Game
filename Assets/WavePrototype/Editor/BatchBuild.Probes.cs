@@ -128,8 +128,8 @@ namespace WavePrototype.Editor
 
         private static RockSweepProbe RunSweptRockProbe()
         {
-            SimulationConfig firstConfig = CreateRockProbeConfig();
-            SimulationConfig secondConfig = CreateRockProbeConfig();
+            SimulationConfig firstConfig = CreateRockProbeConfig(true);
+            SimulationConfig secondConfig = CreateRockProbeConfig(false);
             var first = new WaveSimulation(1847, firstConfig);
             var second = new WaveSimulation(1847, secondConfig);
 
@@ -170,13 +170,14 @@ namespace WavePrototype.Editor
                 projection, Vector2.Distance(escapeStart, first.Boats[0].Position), tunneled, deterministic);
         }
 
-        private static SimulationConfig CreateRockProbeConfig()
+        private static SimulationConfig CreateRockProbeConfig(bool enableSpatialBroadphase)
         {
             return new SimulationConfig
             {
                 FixedDeltaTime = 0.2f,
                 TargetWaveCount = 0,
-                BoatSurfSpeedCap = 36f
+                BoatSurfSpeedCap = 36f,
+                EnableSpatialBroadphase = enableSpatialBroadphase
             };
         }
 
@@ -585,7 +586,8 @@ namespace WavePrototype.Editor
             return count;
         }
 
-        private static PerformanceProbe RunPerformanceProbe(int waveCount, int ticks, int seed)
+        private static PerformanceProbe RunPerformanceProbe(int waveCount, int ticks, int seed,
+            bool enableSpatialBroadphase = true)
         {
             Vector2 benchmarkHalfExtents = waveCount >= 1000
                 ? new Vector2(11200f, 125f)
@@ -594,7 +596,8 @@ namespace WavePrototype.Editor
             {
                 TargetWaveCount = waveCount,
                 WorldHalfExtents = benchmarkHalfExtents,
-                InitialFloatingObjectCount = 0
+                InitialFloatingObjectCount = 0,
+                EnableSpatialBroadphase = enableSpatialBroadphase
             });
             int minimumWaveCount = simulation.Waves.Count;
             Process process = Process.GetCurrentProcess();

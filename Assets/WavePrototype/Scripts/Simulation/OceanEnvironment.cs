@@ -18,6 +18,17 @@ namespace WavePrototype.Simulation
         IOceanEnvironment Create(Vector2 worldHalfExtents, int seed);
     }
 
+    /// <summary>
+    /// Optional deterministic static-rock broadphase. Environments that do not implement
+    /// this interface retain the exact brute-force swept-contact fallback.
+    /// </summary>
+    public interface IRockSpatialQuery
+    {
+        float MaximumRockRadius { get; }
+        int OccupiedRockCellCount { get; }
+        void QueryRockIndices(Vector2 minimum, Vector2 maximum, List<int> results);
+    }
+
     public sealed class OceanEnvironmentFactory : IOceanEnvironmentFactory
     {
         public IOceanEnvironment Create(Vector2 worldHalfExtents, int seed)
@@ -31,7 +42,7 @@ namespace WavePrototype.Simulation
         public RockData(Vector2 position, float radius) { Position = position; Radius = radius; }
     }
 
-    public sealed class OceanEnvironment : IOceanEnvironment
+    public sealed class OceanEnvironment : IOceanEnvironment, IRockSpatialQuery
     {
         private const float RockGridCellSize = 8f;
         private const float DepthGridCellSize = 2f;
@@ -43,6 +54,8 @@ namespace WavePrototype.Simulation
         private readonly int depthGridHeight;
         private readonly ReadOnlyCollection<RockData> rockView;
         public IReadOnlyList<RockData> Rocks => rockView;
+        public float MaximumRockRadius { get; private set; }
+        public int OccupiedRockCellCount => rockGrid.Count;
 
         public OceanEnvironment(Vector2 worldHalfExtents, int seed)
         {
@@ -159,6 +172,21 @@ namespace WavePrototype.Simulation
             return -1;
         }
 
+        public void QueryRockIndices(Vector2 minimum, Vector2 maximum, List<int> results)
+        {
+            results.Clear();
+            Vector2Int first = RockCell(Vector2.Min(minimum, maximum));
+            Vector2Int last = RockCell(Vector2.Max(minimum, maximum));
+            for (int y = first.y; y <= last.y; y++)
+            for (int x = first.x; x <= last.x; x++)
+            {
+                if (!rockGrid.TryGetValue(new Vector2Int(x, y),
+                        out List<int> indices)) continue;
+                for (int item = 0; item < indices.Count; item++) results.Add(indices[item]);
+            }
+            if (results.Count > 1) results.Sort();
+        }
+
         private void GenerateRocks(int seed)
         {
             var random = new DeterministicRandom(seed ^ 0x5A17);
@@ -210,8 +238,10 @@ namespace WavePrototype.Simulation
         private void BuildRockGrid()
         {
             rockGrid.Clear();
+            MaximumRockRadius = 0f;
             for (int i = 0; i < rocks.Count; i++)
             {
+                MaximumRockRadius = Mathf.Max(MaximumRockRadius, rocks[i].Radius);
                 Vector2Int cell = RockCell(rocks[i].Position);
                 if (!rockGrid.TryGetValue(cell, out List<int> indices))
                 {

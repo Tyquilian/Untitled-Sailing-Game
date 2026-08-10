@@ -421,6 +421,23 @@ namespace WavePrototype.Editor
                     breakingLifecycle.ActiveSegments >= 5 && breakingLifecycle.ResumedTraveling,
                 $"Residual swell failed to survive and resume: energy={breakingLifecycle.FinalEnergy:0.00}, active={breakingLifecycle.ActiveSegments}, resumed={breakingLifecycle.ResumedTraveling}.");
 
+            SpatialBroadphaseProbe spatial = RunSpatialBroadphaseProbe();
+            Require(spatial.MatchingTicks == 480 &&
+                    spatial.BroadphaseHash == spatial.BruteForceHash,
+                $"Spatial broadphase diverged from brute force after {spatial.MatchingTicks}/480 ticks: {spatial.BroadphaseHash:X16}/{spatial.BruteForceHash:X16}.");
+            Require(spatial.IndexedSections > 0 && spatial.OccupiedCells > 0,
+                $"Spatial wave index was empty: sections/cells={spatial.IndexedSections}/{spatial.OccupiedCells}.");
+            Require(spatial.WaveBoatPotential > 0 &&
+                    spatial.WaveBoatExact < spatial.WaveBoatPotential / 3,
+                $"Wave/boat broadphase retained too many candidates: {spatial.WaveBoatExact}/{spatial.WaveBoatPotential}.");
+            Require(spatial.FloatingPotential > 0 &&
+                    spatial.FloatingExact < spatial.FloatingPotential / 3,
+                $"Floating-object broadphase retained too many candidates: {spatial.FloatingExact}/{spatial.FloatingPotential}.");
+            Require(spatial.RockPotential > 0 && spatial.RockExact < spatial.RockPotential,
+                $"Static-rock broadphase did not cull swept checks: {spatial.RockExact}/{spatial.RockPotential}.");
+            Require(spatial.Gen0Collections <= 1,
+                $"Warmed broadphase triggered {spatial.Gen0Collections} generation-0 collections over 240 ticks.");
+
             WaveDensitySample density = first.SampleWaveDensity(first.Boats[0].Position, 36.5f);
             Require(density.WorldCount == first.Waves.Count,
                 "Density diagnostics did not match authoritative wave state.");
@@ -482,6 +499,7 @@ namespace WavePrototype.Editor
             Debug.Log($"[WAVE-VALIDATION] Offshore breaking: deepEvents={offshoreBreaking.DeepControlBreakingEvents}, shelfEvents={offshoreBreaking.ShelfBreakingEvents}, shelfDepth={offshoreBreaking.BreakingDepth:0.0}");
             Debug.Log($"[WAVE-VALIDATION] Source cadence: first={cadence.ActualFirstTick}/{cadence.ExpectedFirstTick}, period={cadence.MinimumIntervalTicks}-{cadence.MaximumIntervalTicks}/{cadence.ExpectedPeriodTicks} ticks, emissions={cadence.EmissionCount}, maxBurst={cadence.MaximumTickBurst}, minPopulation={cadence.MinimumPopulation}");
             Debug.Log($"[WAVE-VALIDATION] Breaking lifecycle: energy={breakingLifecycle.InitialEnergy:0.00}->{breakingLifecycle.OneSecondEnergy:0.00}->{breakingLifecycle.FinalEnergy:0.00}, peakFoam={breakingLifecycle.PeakFoamEnergy:0.000}, events={breakingLifecycle.BreakingEvents}, active={breakingLifecycle.ActiveSegments}, resumed={breakingLifecycle.ResumedTraveling}");
+            Debug.Log($"[WAVE-VALIDATION] Spatial broadphase: hashes={spatial.BroadphaseHash:X16}/{spatial.BruteForceHash:X16} matching={spatial.MatchingTicks}, waveBoat={spatial.WaveBoatExact:N0}/{spatial.WaveBoatPotential:N0}, floating={spatial.FloatingExact:N0}/{spatial.FloatingPotential:N0}, rocks={spatial.RockExact:N0}/{spatial.RockPotential:N0}, sections/cells={spatial.IndexedSections}/{spatial.OccupiedCells}, gen0={spatial.Gen0Collections}");
             Debug.Log($"[WAVE-VALIDATION] Determinism benchmark: 1,800 world-steps with {first.Config.TargetWaveCount}+ waves in {timer.Elapsed.TotalSeconds:0.000}s");
             Debug.Log($"[WAVE-VALIDATION] Playable benchmark: waves=20 ticks={playable.Ticks} cpu/wall={playable.CpuSeconds:0.000}/{playable.WallSeconds:0.000}s cpuRate={playable.UpdatesPerSecond:0.0} ticks/s hash={playable.FinalHash:X16}");
             Debug.Log($"[WAVE-VALIDATION] Secondary benchmark: waves=320 ticks={secondary.Ticks} cpu/wall={secondary.CpuSeconds:0.000}/{secondary.WallSeconds:0.000}s cpuRate={secondary.UpdatesPerSecond:0.0} ticks/s hash={secondary.FinalHash:X16}");

@@ -263,6 +263,42 @@ namespace WavePrototype.Simulation
         }
     }
 
+    public readonly struct SpatialBroadphaseSnapshot
+    {
+        public readonly bool Enabled;
+        public readonly int IndexedWaveSections;
+        public readonly int OccupiedWaveCells;
+        public readonly int WaveQueries;
+        public readonly int WaveCandidates;
+        public readonly int WaveBoatExactChecks;
+        public readonly int WaveBoatPotentialChecks;
+        public readonly int FloatingWaveExactChecks;
+        public readonly int FloatingWavePotentialChecks;
+        public readonly int RockQueries;
+        public readonly int RockCandidateChecks;
+        public readonly int RockPotentialChecks;
+
+        public SpatialBroadphaseSnapshot(bool enabled, int indexedWaveSections,
+            int occupiedWaveCells, int waveQueries, int waveCandidates,
+            int waveBoatExactChecks, int waveBoatPotentialChecks,
+            int floatingWaveExactChecks, int floatingWavePotentialChecks,
+            int rockQueries, int rockCandidateChecks, int rockPotentialChecks)
+        {
+            Enabled = enabled;
+            IndexedWaveSections = indexedWaveSections;
+            OccupiedWaveCells = occupiedWaveCells;
+            WaveQueries = waveQueries;
+            WaveCandidates = waveCandidates;
+            WaveBoatExactChecks = waveBoatExactChecks;
+            WaveBoatPotentialChecks = waveBoatPotentialChecks;
+            FloatingWaveExactChecks = floatingWaveExactChecks;
+            FloatingWavePotentialChecks = floatingWavePotentialChecks;
+            RockQueries = rockQueries;
+            RockCandidateChecks = rockCandidateChecks;
+            RockPotentialChecks = rockPotentialChecks;
+        }
+    }
+
     [Serializable]
     public struct TargetMarkerData
     {
@@ -344,6 +380,8 @@ namespace WavePrototype.Simulation
         public int PendingInputCompactionThreshold = 1024;
         public VesselProfileDefinition ArcadeSkiffProfile = VesselProfileDefinition.ArcadeSkiff;
         public VesselProfileDefinition HeavyCutterProfile = VesselProfileDefinition.HeavyCutter;
+        public bool EnableSpatialBroadphase = true;
+        public float SpatialWaveCellSize = 16f;
 
         // Named balance values that were previously embedded in system equations.
         public float WaveFollowingThrustScale = 5.2f;
@@ -449,6 +487,8 @@ namespace WavePrototype.Simulation
         public readonly int PendingInputCompactionThreshold;
         public readonly VesselProfileDefinition ArcadeSkiffProfile;
         public readonly VesselProfileDefinition HeavyCutterProfile;
+        public readonly bool EnableSpatialBroadphase;
+        public readonly float SpatialWaveCellSize;
         public readonly float WaveFollowingThrustScale;
         public readonly float WaveHeadOnDampingScale;
         public readonly float BreakingBoatDamageThreshold;
@@ -535,6 +575,8 @@ namespace WavePrototype.Simulation
             PendingInputCompactionThreshold = source.PendingInputCompactionThreshold;
             ArcadeSkiffProfile = source.ArcadeSkiffProfile;
             HeavyCutterProfile = source.HeavyCutterProfile;
+            EnableSpatialBroadphase = source.EnableSpatialBroadphase;
+            SpatialWaveCellSize = source.SpatialWaveCellSize;
             WaveFollowingThrustScale = source.WaveFollowingThrustScale;
             WaveHeadOnDampingScale = source.WaveHeadOnDampingScale;
             BreakingBoatDamageThreshold = source.BreakingBoatDamageThreshold;

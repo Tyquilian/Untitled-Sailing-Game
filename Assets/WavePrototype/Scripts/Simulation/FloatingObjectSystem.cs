@@ -11,6 +11,8 @@ namespace WavePrototype.Simulation
     {
         private readonly SimulationConfig config;
         private readonly IOceanEnvironment environment;
+        private readonly List<WaveSectionReference> spatialCandidates =
+            new List<WaveSectionReference>(256);
         private DeterministicRandom random;
         private int nextObjectId;
 
@@ -18,6 +20,8 @@ namespace WavePrototype.Simulation
         public int NextObjectId => nextObjectId;
         public int CollectedCount { get; private set; }
         public float CollectedValue { get; private set; }
+        public int WaveExactSegmentChecks { get; private set; }
+        public int WavePotentialSegmentChecks { get; private set; }
 
         public FloatingObjectSystem(SimulationConfig config, IOceanEnvironment environment)
         {
@@ -52,8 +56,11 @@ namespace WavePrototype.Simulation
         public void Decide(IReadOnlyList<FloatingObjectData> objects,
             IReadOnlyList<WaveData> waves, IReadOnlyList<WaveDecision> waveDecisions,
             IReadOnlyList<BoatData> boats, List<BoatDecision> boatDecisions,
-            List<FloatingObjectDecision> decisions, List<SimulationEvent> pendingEvents)
+            List<FloatingObjectDecision> decisions, List<SimulationEvent> pendingEvents,
+            WaveSectionSpatialIndex spatialIndex)
         {
+            WaveExactSegmentChecks = 0;
+            WavePotentialSegmentChecks = 0;
             while (decisions.Count < objects.Count) decisions.Add(default);
             if (decisions.Count > objects.Count)
                 decisions.RemoveRange(objects.Count, decisions.Count - objects.Count);
@@ -76,7 +83,8 @@ namespace WavePrototype.Simulation
                     continue;
                 }
 
-                FloatingWaveSample waveSample = SampleWaveDrift(item.Position, waves, waveDecisions);
+                FloatingWaveSample waveSample = SampleWaveDrift(item.Position, waves,
+                    waveDecisions, spatialIndex);
                 decision.Velocity += waveSample.Drift * config.FloatingObjectWaveResponse * dt;
                 if (waveSample.BreakingWaveId > 0 &&
                     waveSample.BreakingWaveId != item.LastBreakingWaveId)
@@ -178,7 +186,7 @@ namespace WavePrototype.Simulation
         }
 
         private FloatingWaveSample SampleWaveDrift(Vector2 position, IReadOnlyList<WaveData> waves,
-            IReadOnlyList<WaveDecision> waveDecisions)
+            IReadOnlyList<WaveDecision> waveDecisions, WaveSectionSpatialIndex spatialIndex)
         {
             const float radius = 7f;
             float radiusSquared = radius * radius;
@@ -187,38 +195,93 @@ namespace WavePrototype.Simulation
             int breakingSegmentIndex = -1;
             float breakingForce = 0f;
             Vector2 breakingDirection = Vector2.zero;
-            for (int waveIndex = 0; waveIndex < waves.Count; waveIndex++)
+
+            for (int waveIndex = 0; waveIndex < waveDecisions.Count; waveIndex++)
             {
                 WaveSegmentDecision[] segments = waveDecisions[waveIndex].Segments;
-                if (segments == null) continue;
-                int nearest = -1;
-                float nearestSquared = radiusSquared;
-                for (int segmentIndex = 0; segmentIndex < segments.Length; segmentIndex++)
+                if (segments != null) WavePotentialSegmentChecks += segments.Length;
+            }
+
+            if (config.EnableSpatialBroadphase)
+            {
+                spatialIndex.Query(position, radius + spatialIndex.MaximumDecisionOffset,
+                    spatialCandidates);
+                int candidateIndex = 0;
+                while (candidateIndex < spatialCandidates.Count)
                 {
-                    if (!segments[segmentIndex].Active) continue;
-                    float distanceSquared = (segments[segmentIndex].Position - position).sqrMagnitude;
-                    if (distanceSquared >= nearestSquared) continue;
-                    nearest = segmentIndex;
-                    nearestSquared = distanceSquared;
+                    int waveIndex = spatialCandidates[candidateIndex].WaveIndex;
+                    int nearest = -1;
+                    float nearestSquared = radiusSquared;
+                    while (candidateIndex < spatialCandidates.Count &&
+                           spatialCandidates[candidateIndex].WaveIndex == waveIndex)
+                    {
+                        WaveSectionReference reference = spatialCandidates[candidateIndex++];
+                        if (waveIndex >= waveDecisions.Count) continue;
+                        WaveSegmentDecision[] segments = waveDecisions[waveIndex].Segments;
+                        if (segments == null || reference.SegmentIndex >= segments.Length) continue;
+                        WaveExactSegmentChecks++;
+                        WaveSegmentDecision segment = segments[reference.SegmentIndex];
+                        if (!segment.Active) continue;
+                        float distanceSquared = (segment.Position - position).sqrMagnitude;
+                        if (distanceSquared >= nearestSquared) continue;
+                        nearest = reference.SegmentIndex;
+                        nearestSquared = distanceSquared;
+                    }
+                    AccumulateNearestWave(waves, waveDecisions, waveIndex, nearest,
+                        nearestSquared, radius, ref drift, ref breakingWaveId,
+                        ref breakingSegmentIndex, ref breakingForce, ref breakingDirection);
                 }
-                if (nearest < 0) continue;
-                WaveSegmentDecision local = segments[nearest];
-                float proximity = 1f - Mathf.Sqrt(nearestSquared) / radius;
-                float stateScale = local.State == WaveState.Breaking
-                    ? Mathf.Lerp(0.55f, 0.9f, 0.55f + local.BreakingIntensity * 0.45f) :
-                    local.State == WaveState.Spent ? 0.12f : 0.55f;
-                float localForce = Mathf.Min(5f, local.InteractionForce) * proximity;
-                drift += local.Direction * localForce * stateScale;
-                if (local.State == WaveState.Breaking && localForce > breakingForce)
+            }
+            else
+            {
+                for (int waveIndex = 0; waveIndex < waves.Count; waveIndex++)
                 {
-                    breakingWaveId = waves[waveIndex].Id;
-                    breakingSegmentIndex = nearest;
-                    breakingForce = localForce;
-                    breakingDirection = local.Direction;
+                    WaveSegmentDecision[] segments = waveDecisions[waveIndex].Segments;
+                    if (segments == null) continue;
+                    int nearest = -1;
+                    float nearestSquared = radiusSquared;
+                    for (int segmentIndex = 0; segmentIndex < segments.Length; segmentIndex++)
+                    {
+                        WaveExactSegmentChecks++;
+                        if (!segments[segmentIndex].Active) continue;
+                        float distanceSquared = (segments[segmentIndex].Position - position).sqrMagnitude;
+                        if (distanceSquared >= nearestSquared) continue;
+                        nearest = segmentIndex;
+                        nearestSquared = distanceSquared;
+                    }
+                    AccumulateNearestWave(waves, waveDecisions, waveIndex, nearest,
+                        nearestSquared, radius, ref drift, ref breakingWaveId,
+                        ref breakingSegmentIndex, ref breakingForce, ref breakingDirection);
                 }
             }
             return new FloatingWaveSample(Vector2.ClampMagnitude(drift, 8f),
                 breakingWaveId, breakingSegmentIndex, breakingForce, breakingDirection);
+        }
+
+        private static void AccumulateNearestWave(IReadOnlyList<WaveData> waves,
+            IReadOnlyList<WaveDecision> waveDecisions, int waveIndex, int nearest,
+            float nearestSquared, float radius, ref Vector2 drift, ref int breakingWaveId,
+            ref int breakingSegmentIndex, ref float breakingForce,
+            ref Vector2 breakingDirection)
+        {
+            if (nearest < 0 || waveIndex < 0 || waveIndex >= waves.Count ||
+                waveIndex >= waveDecisions.Count) return;
+            WaveSegmentDecision[] segments = waveDecisions[waveIndex].Segments;
+            if (segments == null || nearest >= segments.Length) return;
+            WaveSegmentDecision local = segments[nearest];
+            float proximity = 1f - Mathf.Sqrt(nearestSquared) / radius;
+            float stateScale = local.State == WaveState.Breaking
+                ? Mathf.Lerp(0.55f, 0.9f, 0.55f + local.BreakingIntensity * 0.45f) :
+                local.State == WaveState.Spent ? 0.12f : 0.55f;
+            float localForce = Mathf.Min(5f, local.InteractionForce) * proximity;
+            drift += local.Direction * localForce * stateScale;
+            if (local.State == WaveState.Breaking && localForce > breakingForce)
+            {
+                breakingWaveId = waves[waveIndex].Id;
+                breakingSegmentIndex = nearest;
+                breakingForce = localForce;
+                breakingDirection = local.Direction;
+            }
         }
 
         private bool TryFindSpawnPosition(IReadOnlyList<FloatingObjectData> objects,

@@ -29,6 +29,7 @@ namespace WavePrototype.Simulation
         private readonly ReadOnlyCollection<SimulationEvent> eventView;
         private WaveSourceSystem waveSourceSystem;
         private WavePropagationSystem wavePropagationSystem;
+        private WaveSectionSpatialIndex waveSectionSpatialIndex;
         private WaveBoatInteractionSystem waveBoatInteractionSystem;
         private BoatMotionSystem boatMotionSystem;
         private TargetMarkerSystem targetMarkerSystem;
@@ -51,6 +52,19 @@ namespace WavePrototype.Simulation
         public ulong Tick { get; private set; }
         public int PlayerBoatId { get; private set; }
         public float SimulatedTime => Tick * Config.FixedDeltaTime;
+        public SpatialBroadphaseSnapshot SpatialBroadphase => new SpatialBroadphaseSnapshot(
+            runtimeConfig.EnableSpatialBroadphase,
+            waveSectionSpatialIndex == null ? 0 : waveSectionSpatialIndex.IndexedSectionCount,
+            waveSectionSpatialIndex == null ? 0 : waveSectionSpatialIndex.OccupiedCellCount,
+            waveSectionSpatialIndex == null ? 0 : waveSectionSpatialIndex.QueryCount,
+            waveSectionSpatialIndex == null ? 0 : waveSectionSpatialIndex.CandidateReferenceCount,
+            waveBoatInteractionSystem == null ? 0 : waveBoatInteractionSystem.ExactSegmentChecks,
+            waveBoatInteractionSystem == null ? 0 : waveBoatInteractionSystem.PotentialSegmentChecks,
+            floatingObjectSystem == null ? 0 : floatingObjectSystem.WaveExactSegmentChecks,
+            floatingObjectSystem == null ? 0 : floatingObjectSystem.WavePotentialSegmentChecks,
+            boatMotionSystem == null ? 0 : boatMotionSystem.RockQueryCount,
+            boatMotionSystem == null ? 0 : boatMotionSystem.RockCandidateChecks,
+            boatMotionSystem == null ? 0 : boatMotionSystem.RockPotentialChecks);
         public int ActiveWaveSourceCount
         {
             get
@@ -124,6 +138,8 @@ namespace WavePrototype.Simulation
             Environment = environmentFactory.Create(runtimeConfig.WorldHalfExtents, seed);
             waveSourceSystem = new WaveSourceSystem(runtimeConfig, Environment);
             wavePropagationSystem = new WavePropagationSystem(runtimeConfig, Environment, waveSourceSystem);
+            waveSectionSpatialIndex = new WaveSectionSpatialIndex(
+                runtimeConfig.SpatialWaveCellSize, runtimeConfig.WorldHalfExtents);
             waveBoatInteractionSystem = new WaveBoatInteractionSystem(runtimeConfig);
             boatMotionSystem = new BoatMotionSystem(runtimeConfig, Environment);
             waveSourceSystem.Reset(seed);
@@ -232,9 +248,15 @@ namespace WavePrototype.Simulation
             pendingEvents.Clear();
             inputBuffer.BeginTick(Tick);
             wavePropagationSystem.Decide(waves, waveDecisions, pendingEvents, Tick);
-            waveBoatInteractionSystem.Accumulate(waves, waveDecisions, boats, boatDecisions, pendingEvents);
+            if (runtimeConfig.EnableSpatialBroadphase)
+                waveSectionSpatialIndex.Build(waves, waveDecisions, runtimeConfig);
+            else
+                waveSectionSpatialIndex.ClearForDisabledMode();
+            waveBoatInteractionSystem.Accumulate(waves, waveDecisions, boats, boatDecisions,
+                pendingEvents, waveSectionSpatialIndex);
             floatingObjectSystem.Decide(floatingObjects, waves, waveDecisions, boats,
-                boatDecisions, floatingObjectDecisions, pendingEvents);
+                boatDecisions, floatingObjectDecisions, pendingEvents,
+                waveSectionSpatialIndex);
             boatMotionSystem.Decide(boats, boatDecisions, inputBuffer);
             Apply();
             Tick++;
@@ -564,6 +586,9 @@ namespace WavePrototype.Simulation
 
         private void MixConfig(ref ulong hash)
         {
+            // Spatial broadphase settings are deliberately omitted: they are execution
+            // policy, not authoritative game state. Broadphase and brute force must hash
+            // identically when their exact ordered decisions agree.
             MixFloat(ref hash, Config.FixedDeltaTime);
             MixVector(ref hash, Config.WorldHalfExtents);
             MixFloat(ref hash, Config.BaseWaveSpeed);
