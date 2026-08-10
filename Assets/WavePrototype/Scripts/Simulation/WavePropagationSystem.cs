@@ -36,7 +36,7 @@ namespace WavePrototype.Simulation
             for (int waveIndex = 0; waveIndex < waves.Count; waveIndex++)
             {
                 WaveData wave = waves[waveIndex];
-                WaveSegmentData[] segments = wave.Segments;
+                WaveSegmentData[] segments = wave.MutableSegments;
                 WaveDecision decision = decisions[waveIndex];
                 int segmentCount = segments == null ? 0 : segments.Length;
                 if (decision.WaveId != wave.Id || decision.Segments == null ||

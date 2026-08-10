@@ -24,7 +24,7 @@ namespace WavePrototype.Simulation
             {
                 WaveData wave = waves[waveIndex];
                 WaveDecision waveDecision = waveDecisions[waveIndex];
-                WaveSegmentData[] segments = wave.Segments;
+                WaveSegmentData[] segments = wave.MutableSegments;
                 WaveSegmentDecision[] segmentDecisions = waveDecision.Segments;
                 if (segments == null || segmentDecisions == null) continue;
                 float segmentSpan = segments.Length <= 1
@@ -84,15 +84,16 @@ namespace WavePrototype.Simulation
                         impact *= relativePassage;
                     }
                     decision.Force += best.Direction * impact * config.WaveBoatForceScale;
-                    decision.Force += forward * impact * following * 5.2f;
-                    decision.Force -= boat.Velocity * impact * headOn * 1.45f;
+                    decision.Force += forward * impact * following * config.WaveFollowingThrustScale;
+                    decision.Force -= boat.Velocity * impact * headOn * config.WaveHeadOnDampingScale;
                     float yawMultiplier = best.State == WaveState.Traveling
                         ? config.TravelingYawMultiplier : 1f;
                     decision.HeadingImpulse += SimulationMath.Cross(forward, best.Direction)
                         * impact * proximity * config.WaveYawScale * yawMultiplier;
                     if (best.State == WaveState.Breaking)
-                        decision.Damage += Mathf.Max(0f, best.InteractionForce - 0.35f)
-                            * proximity * dt * 5.2f * breakingScale;
+                        decision.Damage += Mathf.Max(0f, best.InteractionForce -
+                            config.BreakingBoatDamageThreshold) * proximity * dt *
+                            config.BreakingBoatDamageScale * breakingScale;
                     boatDecisions[boatIndex] = decision;
                     pendingEvents.Add(new SimulationEvent(SimulationEventType.WaveHitBoat,
                         wave.Id, boat.Id, boat.Position, impact, bestSegment));

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using UnityEngine;
 
 namespace WavePrototype.Simulation
@@ -17,13 +18,15 @@ namespace WavePrototype.Simulation
         private readonly List<SwellSystemData> swellSystems = new List<SwellSystemData>(4);
         private readonly Dictionary<int, int> activeSystemCounts = new Dictionary<int, int>(8);
         private readonly int[] streamSystemIds = new int[3];
+        private readonly ReadOnlyCollection<WaveSourceData> sourceView;
+        private readonly ReadOnlyCollection<SwellSystemData> swellSystemView;
         private DeterministicRandom random;
         private int nextWaveId;
         private int nextSwellSystemId;
         private int maintenanceCursor;
 
-        public IReadOnlyList<WaveSourceData> Sources => sources;
-        public IReadOnlyList<SwellSystemData> SwellSystems => swellSystems;
+        public IReadOnlyList<WaveSourceData> Sources => sourceView;
+        public IReadOnlyList<SwellSystemData> SwellSystems => swellSystemView;
         public uint RandomState => random.State;
         public int NextWaveId => nextWaveId;
         public int NextSwellSystemId => nextSwellSystemId;
@@ -32,6 +35,8 @@ namespace WavePrototype.Simulation
         {
             this.config = config;
             this.environment = environment;
+            sourceView = sources.AsReadOnly();
+            swellSystemView = swellSystems.AsReadOnly();
         }
 
         public void Reset(int seed)
@@ -355,7 +360,7 @@ namespace WavePrototype.Simulation
                 PacketLength = packetLength,
                 CrestLength = crestLength,
                 State = WaveState.Traveling,
-                Segments = CreateSegments(position, direction, energy, speed, crestLength)
+                MutableSegments = CreateSegments(position, direction, energy, speed, crestLength)
             });
         }
 
@@ -389,7 +394,7 @@ namespace WavePrototype.Simulation
                 PacketLength = packetLength,
                 CrestLength = crestLength,
                 State = WaveState.Traveling,
-                Segments = CreateSegments(position, direction, energy, speed, crestLength)
+                MutableSegments = CreateSegments(position, direction, energy, speed, crestLength)
             });
         }
 

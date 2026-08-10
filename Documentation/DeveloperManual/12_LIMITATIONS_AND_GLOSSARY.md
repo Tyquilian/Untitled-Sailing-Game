@@ -49,9 +49,6 @@
 
 ### API and diagnostics
 
-- `SimulationConfig` is publicly mutable although several values are effectively
-  construction-only.
-- `WaveData.Segments` leaks a mutable array reference through a read-only wave list.
 - `SampleWaveDensity` counts parent wave centers and is misleading for map-spanning crests.
 - `TargetWaveCount` also disables scheduled source maintenance and initial floating objects
   when nonpositive; its name does not reveal those couplings.
@@ -63,10 +60,6 @@
 
 ### Project organization
 
-- `WavePrototypeApp.cs` combines lifecycle, camera, input, mesh building, HUD, automated
-  player modes, and diagnostics.
-- `BatchBuild.cs` combines validation, benchmarks, synthetic environments, and eleven build
-  entry points.
 - The simulation depends on UnityEngine math types despite its lifecycle separation.
 - There is no automated documentation generator or standalone non-Unity test runner.
 

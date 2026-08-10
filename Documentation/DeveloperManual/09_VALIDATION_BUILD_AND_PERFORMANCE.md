@@ -13,7 +13,9 @@
 | `RunValidation` | Complete assertion-based Batch 13 suite used before every build |
 
 Failures throw `InvalidOperationException` prefixed with `[WAVE-VALIDATION]`. There is no
-Unity Test Framework test assembly; `BatchBuild.cs` is the test harness.
+Unity Test Framework test assembly. The partial `BatchBuild` harness is split across
+`BatchBuild.cs` (orchestration), `.Architecture.cs`, `.Probes.cs`, `.ProbeTypes.cs`, and
+`.Builds.cs`; command-line entry points remain unchanged.
 
 ## Complete validation suite
 

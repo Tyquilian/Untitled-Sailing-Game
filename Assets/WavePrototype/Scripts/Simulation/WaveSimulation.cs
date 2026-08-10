@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using UnityEngine;
 
 namespace WavePrototype.Simulation
@@ -20,7 +21,12 @@ namespace WavePrototype.Simulation
         private readonly List<BoatDecision> boatDecisions = new List<BoatDecision>(8);
         private readonly List<FloatingObjectDecision> floatingObjectDecisions =
             new List<FloatingObjectDecision>(64);
-        private readonly BoatInputBuffer inputBuffer = new BoatInputBuffer();
+        private readonly SimulationConfig runtimeConfig;
+        private readonly BoatInputBuffer inputBuffer;
+        private readonly ReadOnlyCollection<WaveData> waveView;
+        private readonly ReadOnlyCollection<BoatData> boatView;
+        private readonly ReadOnlyCollection<FloatingObjectData> floatingObjectView;
+        private readonly ReadOnlyCollection<SimulationEvent> eventView;
         private WaveSourceSystem waveSourceSystem;
         private WavePropagationSystem wavePropagationSystem;
         private WaveBoatInteractionSystem waveBoatInteractionSystem;
@@ -29,12 +35,12 @@ namespace WavePrototype.Simulation
         private FloatingObjectSystem floatingObjectSystem;
         private int nextBoatId;
 
-        public SimulationConfig Config { get; }
+        public SimulationConfigSnapshot Config { get; }
         public IOceanEnvironment Environment { get; private set; }
-        public IReadOnlyList<WaveData> Waves => waves;
-        public IReadOnlyList<BoatData> Boats => boats;
-        public IReadOnlyList<FloatingObjectData> FloatingObjects => floatingObjects;
-        public IReadOnlyList<SimulationEvent> Events => events;
+        public IReadOnlyList<WaveData> Waves => waveView;
+        public IReadOnlyList<BoatData> Boats => boatView;
+        public IReadOnlyList<FloatingObjectData> FloatingObjects => floatingObjectView;
+        public IReadOnlyList<SimulationEvent> Events => eventView;
         public IReadOnlyList<WaveSourceData> WaveSources => waveSourceSystem.Sources;
         public IReadOnlyList<SwellSystemData> SwellSystems => waveSourceSystem.SwellSystems;
         public IReadOnlyList<BoatControlCommand> RecordedControls => inputBuffer.AppliedCommands;
@@ -63,7 +69,7 @@ namespace WavePrototype.Simulation
             {
                 int count = 0;
                 for (int i = 0; i < waves.Count; i++)
-                    if (waves[i].Segments != null) count += waves[i].Segments.Length;
+                    count += waves[i].MutableSegments == null ? 0 : waves[i].MutableSegments.Length;
                 return count;
             }
         }
@@ -74,7 +80,7 @@ namespace WavePrototype.Simulation
                 int count = 0;
                 for (int i = 0; i < waves.Count; i++)
                 {
-                    WaveSegmentData[] segments = waves[i].Segments;
+                    WaveSegmentData[] segments = waves[i].MutableSegments;
                     if (segments == null) continue;
                     for (int segment = 0; segment < segments.Length; segment++)
                         if (segments[segment].Active) count++;
@@ -86,7 +92,15 @@ namespace WavePrototype.Simulation
         public WaveSimulation(int seed, SimulationConfig config = null,
             IOceanEnvironmentFactory environmentFactory = null)
         {
-            Config = config ?? new SimulationConfig();
+            runtimeConfig = (config ?? new SimulationConfig()).Clone();
+            Config = new SimulationConfigSnapshot(runtimeConfig);
+            inputBuffer = new BoatInputBuffer(runtimeConfig.RecordBoatControlHistory,
+                runtimeConfig.MaximumRecordedBoatControls,
+                runtimeConfig.PendingInputCompactionThreshold);
+            waveView = waves.AsReadOnly();
+            boatView = boats.AsReadOnly();
+            floatingObjectView = floatingObjects.AsReadOnly();
+            eventView = events.AsReadOnly();
             this.environmentFactory = environmentFactory ?? new OceanEnvironmentFactory();
             Reset(seed);
         }
@@ -107,19 +121,19 @@ namespace WavePrototype.Simulation
             floatingObjectDecisions.Clear();
             inputBuffer.Reset();
 
-            Environment = environmentFactory.Create(Config.WorldHalfExtents, seed);
-            waveSourceSystem = new WaveSourceSystem(Config, Environment);
-            wavePropagationSystem = new WavePropagationSystem(Config, Environment, waveSourceSystem);
-            waveBoatInteractionSystem = new WaveBoatInteractionSystem(Config);
-            boatMotionSystem = new BoatMotionSystem(Config, Environment);
+            Environment = environmentFactory.Create(runtimeConfig.WorldHalfExtents, seed);
+            waveSourceSystem = new WaveSourceSystem(runtimeConfig, Environment);
+            wavePropagationSystem = new WavePropagationSystem(runtimeConfig, Environment, waveSourceSystem);
+            waveBoatInteractionSystem = new WaveBoatInteractionSystem(runtimeConfig);
+            boatMotionSystem = new BoatMotionSystem(runtimeConfig, Environment);
             waveSourceSystem.Reset(seed);
             PlayerBoatId = PrototypeScenario.AddInitialBoats(this);
-            targetMarkerSystem = new TargetMarkerSystem(Config, Environment);
+            targetMarkerSystem = new TargetMarkerSystem(runtimeConfig, Environment);
             targetMarkerSystem.Reset(seed, boats[FindBoatIndex(PlayerBoatId)].Position);
-            floatingObjectSystem = new FloatingObjectSystem(Config, Environment);
+            floatingObjectSystem = new FloatingObjectSystem(runtimeConfig, Environment);
             floatingObjectSystem.Reset(seed, floatingObjects,
                 boats[FindBoatIndex(PlayerBoatId)].Position);
-            waveSourceSystem.PopulateInitialWorld(waves, Config.TargetWaveCount);
+            waveSourceSystem.PopulateInitialWorld(waves, runtimeConfig.TargetWaveCount);
         }
 
         public bool QueueBoatControl(BoatControlCommand command)
@@ -238,10 +252,11 @@ namespace WavePrototype.Simulation
                     pendingEvents.Add(new SimulationEvent(SimulationEventType.WaveExpired,
                         expired.Id, 0, expired.Position, expired.Energy));
                     waves.RemoveAt(i);
+                    waveDecisions.RemoveAt(i);
                     continue;
                 }
                 WaveData wave = waves[i];
-                WaveSegmentData[] segments = wave.Segments;
+                WaveSegmentData[] segments = wave.MutableSegments;
                 WaveSegmentDecision[] segmentDecisions = decision.Segments;
                 if (segments != null && segmentDecisions != null)
                 {
@@ -272,7 +287,7 @@ namespace WavePrototype.Simulation
                 waves[i] = wave;
             }
 
-            waveSourceSystem.MaintainPopulation(waves, Config.TargetWaveCount, Tick);
+            waveSourceSystem.MaintainPopulation(waves, runtimeConfig.TargetWaveCount, Tick);
             events.AddRange(pendingEvents);
         }
 
@@ -285,7 +300,7 @@ namespace WavePrototype.Simulation
             for (int i = 0; i < waves.Count; i++)
             {
                 WaveData wave = waves[i];
-                WaveSegmentData[] segments = wave.Segments;
+                WaveSegmentData[] segments = wave.MutableSegments;
                 int nearest = -1;
                 float nearestSquared = radiusSquared;
                 if (segments != null)
@@ -428,7 +443,7 @@ namespace WavePrototype.Simulation
                     MixFloat(ref hash, wave.PacketLength);
                     MixFloat(ref hash, wave.CrestLength);
                     Mix(ref hash, (uint)wave.State);
-                    WaveSegmentData[] segments = wave.Segments;
+                    WaveSegmentData[] segments = wave.MutableSegments;
                     Mix(ref hash, (uint)(segments == null ? 0 : segments.Length));
                     if (segments != null)
                     {
@@ -571,6 +586,22 @@ namespace WavePrototype.Simulation
             MixFloat(ref hash, Config.BreakingFloatingObjectImpulse);
             MixFloat(ref hash, Config.WreckageInertiaScale);
             MixFloat(ref hash, Config.FloatingObjectMaximumSpeed);
+            Mix(ref hash, Config.RecordBoatControlHistory ? 1u : 0u);
+            Mix(ref hash, unchecked((uint)Config.MaximumRecordedBoatControls));
+            Mix(ref hash, unchecked((uint)Config.PendingInputCompactionThreshold));
+            MixFloat(ref hash, Config.WaveFollowingThrustScale);
+            MixFloat(ref hash, Config.WaveHeadOnDampingScale);
+            MixFloat(ref hash, Config.BreakingBoatDamageThreshold);
+            MixFloat(ref hash, Config.BreakingBoatDamageScale);
+            MixFloat(ref hash, Config.BoatReverseBrakeScale);
+            MixFloat(ref hash, Config.BoatReversePropulsionScale);
+            MixFloat(ref hash, Config.BoatMinimumTurnAuthority);
+            MixFloat(ref hash, Config.BoatFullTurnAuthoritySpeed);
+            MixFloat(ref hash, Config.GroundingBaseDamage);
+            MixFloat(ref hash, Config.GroundingSpeedDamageScale);
+            MixFloat(ref hash, Config.GroundingBounce);
+            MixFloat(ref hash, Config.RockBaseDamage);
+            MixFloat(ref hash, Config.RockSpeedDamageScale);
         }
 
         private static void MixVector(ref ulong hash, Vector2 value)

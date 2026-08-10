@@ -36,11 +36,15 @@ namespace WavePrototype.Simulation
                 }
                 else
                 {
-                    decision.Force -= boat.Velocity * (-control.Throttle) * boat.Mass * 3.4f;
-                    decision.Force += forward * config.SailingForce * control.Throttle * 0.18f;
+                    decision.Force -= boat.Velocity * (-control.Throttle) * boat.Mass *
+                        config.BoatReverseBrakeScale;
+                    decision.Force += forward * config.SailingForce * control.Throttle *
+                        config.BoatReversePropulsionScale;
                 }
 
-                float turnAuthority = Mathf.Lerp(0.32f, 1f, Mathf.Clamp01(boat.Velocity.magnitude / 5f));
+                float turnAuthority = Mathf.Lerp(config.BoatMinimumTurnAuthority, 1f,
+                    Mathf.Clamp01(boat.Velocity.magnitude /
+                        Mathf.Max(0.01f, config.BoatFullTurnAuthoritySpeed)));
                 decision.HeadingImpulse += control.Steering * config.BoatTurnRate * turnAuthority;
                 decision.Heading = boat.Heading + decision.HeadingImpulse * dt;
                 Vector2 decidedForward = SimulationMath.HeadingVector(decision.Heading);
@@ -67,9 +71,10 @@ namespace WavePrototype.Simulation
                 if (outside || environment.IsLand(decision.Position))
                 {
                     decision.Collision = SimulationEventType.BoatGrounded;
-                    decision.Damage += 0.12f + boat.Velocity.magnitude * 0.16f;
+                    decision.Damage += config.GroundingBaseDamage + boat.Velocity.magnitude *
+                        config.GroundingSpeedDamageScale;
                     decision.Position = boat.Position;
-                    decision.Velocity *= -0.08f;
+                    decision.Velocity *= -config.GroundingBounce;
                 }
                 else if (ResolveRockMotion(boat.Position, decision.Velocity, dt,
                     out Vector2 resolvedPosition, out Vector2 resolvedVelocity, out float impactDamage))
@@ -145,7 +150,7 @@ namespace WavePrototype.Simulation
                 else
                     resolvedVelocity = tangentVelocity * config.RockTangentialRetention + normal * normalSpeed;
 
-                damage += 0.22f + impactSpeed * 0.34f;
+                damage += config.RockBaseDamage + impactSpeed * config.RockSpeedDamageScale;
                 hitAnyRock = true;
                 remainingTime *= 1f - hitFraction;
             }

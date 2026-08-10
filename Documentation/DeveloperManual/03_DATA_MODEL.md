@@ -86,9 +86,10 @@ short and contain one section.
 | `PacketLength` | Longitudinal energy-packet scale used by speed, steepness, contact, and rendering |
 | `CrestLength` | Intended total lateral span from first to last section |
 | `State` | Aggregate state |
-| `Segments` | Fixed-size ordered section array created with the wave |
+| `Segments` | Allocation-free read-only `WaveSegmentCollection` over the fixed ordered sections |
 
-Inactive segments remain in the array. The array does not subdivide or compact. A wave is
+Inactive segments remain in internal authoritative storage. The storage does not subdivide
+or compact, and callers receive section value copies rather than its mutable array. A wave is
 removed when active sections fall below the configured coherent fraction.
 
 ### `WaveSourceData`

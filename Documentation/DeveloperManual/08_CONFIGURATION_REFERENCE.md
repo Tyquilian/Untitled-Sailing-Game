@@ -113,6 +113,24 @@ It is not the surf cap.
 | `WreckageInertiaScale` | 1.65 | multiplier | Converts wreckage radius² into resistance to breaker impulse |
 | `FloatingObjectMaximumSpeed` | 9 | units/s | Absolute drift speed cap |
 
+## Runtime ownership and named impact tuning
+
+| Field | Default | Effect |
+|---|---:|---|
+| `RecordBoatControlHistory` | true | Enables applied-command replay history |
+| `MaximumRecordedBoatControls` | 65536 | Retains newest commands; nonpositive means unlimited |
+| `PendingInputCompactionThreshold` | 1024 | Minimum consumed commands before pending storage may compact |
+| `WaveFollowingThrustScale` | 5.2 | Forward assist from a following crest |
+| `WaveHeadOnDampingScale` | 1.45 | Velocity damping from head-on wave contact |
+| `BreakingBoatDamageThreshold` | 0.35 | Interaction force ignored by breaker damage |
+| `BreakingBoatDamageScale` | 5.2 | Damage above the breaker threshold |
+| `BoatReverseBrakeScale` | 3.4 | Reverse-input velocity braking |
+| `BoatReversePropulsionScale` | 0.18 | Reverse thrust relative to forward sailing force |
+| `BoatMinimumTurnAuthority` | 0.32 | Steering authority near rest |
+| `BoatFullTurnAuthoritySpeed` | 5 | Speed at full steering authority |
+| `GroundingBaseDamage`, `GroundingSpeedDamageScale`, `GroundingBounce` | 0.12, 0.16, 0.08 | Land-contact response |
+| `RockBaseDamage`, `RockSpeedDamageScale` | 0.22, 0.34 | Swept rock-contact damage |
+
 ## Coupled tuning warnings
 
 - `TargetWaveCount` is historically named and overloaded: it seeds front count, disables
@@ -123,7 +141,7 @@ It is not the surf cap.
   They do not create additional authored geography.
 - Changing fixed timestep changes source period rounding, input ticks, all integrations, and
   deterministic hashes.
-- Changing config after simulation construction can disagree with cached propagation decay
-  factors and already-created environment/source geometry.
+- Configuration is immutable after simulation construction. Rebuild the simulation from a
+  new `SimulationConfig` builder to change tuning coherently.
 - Increasing `WaveMaximumSegments`, source count, world scale, or active front count can push
   the narrow 1,000-front performance margin below real time.

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 namespace WavePrototype.Simulation
 {
@@ -11,11 +12,24 @@ namespace WavePrototype.Simulation
         private readonly List<BoatControlCommand> pending = new List<BoatControlCommand>(512);
         private readonly List<BoatControlCommand> applied = new List<BoatControlCommand>(512);
         private readonly Dictionary<int, BoatControl> active = new Dictionary<int, BoatControl>(8);
+        private readonly ReadOnlyCollection<BoatControlCommand> appliedView;
+        private readonly bool recordHistory;
+        private readonly int maximumRecordedCommands;
+        private readonly int compactionThreshold;
         private int pendingCursor;
 
-        public IReadOnlyList<BoatControlCommand> AppliedCommands => applied;
+        public IReadOnlyList<BoatControlCommand> AppliedCommands => appliedView;
         internal IReadOnlyList<BoatControlCommand> PendingCommands => pending;
         internal int PendingCursor => pendingCursor;
+
+        public BoatInputBuffer(bool recordHistory, int maximumRecordedCommands,
+            int compactionThreshold)
+        {
+            this.recordHistory = recordHistory;
+            this.maximumRecordedCommands = maximumRecordedCommands;
+            this.compactionThreshold = System.Math.Max(1, compactionThreshold);
+            appliedView = applied.AsReadOnly();
+        }
 
         public void Reset()
         {
@@ -57,7 +71,16 @@ namespace WavePrototype.Simulation
             {
                 BoatControlCommand command = pending[pendingCursor++];
                 active[command.BoatId] = command.Control;
-                applied.Add(command);
+                if (recordHistory) applied.Add(command);
+            }
+
+            if (maximumRecordedCommands > 0 && applied.Count > maximumRecordedCommands)
+                applied.RemoveRange(0, applied.Count - maximumRecordedCommands);
+
+            if (pendingCursor >= compactionThreshold && pendingCursor * 2 >= pending.Count)
+            {
+                pending.RemoveRange(0, pendingCursor);
+                pendingCursor = 0;
             }
         }
 

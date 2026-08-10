@@ -42,7 +42,8 @@ retention factors and generated environment/source data are cached during constr
 8. Add initialization, mutation, and deterministic regression checks.
 
 Arrays inside value structs are references. Never expose a `WaveData` copy and assume its
-`Segments` can be safely modified by consumers.
+`Segments` is a read-only value view. Add authoritative section changes through the
+simulation Decide/Apply path; consumers cannot obtain the backing array.
 
 ## Adding a simulation system
 

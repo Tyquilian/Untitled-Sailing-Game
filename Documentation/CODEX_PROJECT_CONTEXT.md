@@ -1,7 +1,7 @@
 # Codex Working Context
 
 This is a compact working reference, not the human developer manual. Current baseline:
-Batch 13, commit `337f521`, tag `batch-13-baseline`, Unity `6000.3.2f1`.
+Batch 13 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
 
 ## Non-negotiable rules
 
@@ -30,9 +30,10 @@ Batch 13, commit `337f521`, tag `batch-13-baseline`, Unity `6000.3.2f1`.
 
 - `SampleWaveDensity` counts parent centers, not visible/nearby sections.
 - `TargetWaveCount <= 0` also disables source maintenance and initial floating objects.
-- Config is mutable but propagation retention/environment/source data are construction/reset
-  cached.
-- `WaveData.Segments` exposes a mutable array through read-only list views.
+- Runtime config is immutable; use a new `SimulationConfig` builder and reconstruct the
+  simulation to change startup tuning.
+- Recorded boat controls retain the latest 65,536 commands by default; configure nonpositive
+  capacity for unlimited diagnostic replay or disable recording when it is unnecessary.
 - 1,000 fronts run at only 30.8 ticks/s on reference PC; 10k runs at 2.2 ticks/s.
 - Boats are point-scale for waves and circular for rocks; larger vessels need hull sampling.
 - Same-build/platform determinism only; replay contains boat controls, not debug operations.

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using UnityEngine;
 
 namespace WavePrototype.Simulation
@@ -40,11 +41,13 @@ namespace WavePrototype.Simulation
         private readonly float[] depthGrid;
         private readonly int depthGridWidth;
         private readonly int depthGridHeight;
-        public IReadOnlyList<RockData> Rocks => rocks;
+        private readonly ReadOnlyCollection<RockData> rockView;
+        public IReadOnlyList<RockData> Rocks => rockView;
 
         public OceanEnvironment(Vector2 worldHalfExtents, int seed)
         {
             halfExtents = worldHalfExtents;
+            rockView = rocks.AsReadOnly();
             depthGridWidth = Mathf.CeilToInt(halfExtents.x * 2f / DepthGridCellSize) + 1;
             depthGridHeight = Mathf.CeilToInt(halfExtents.y * 2f / DepthGridCellSize) + 1;
             depthGrid = new float[depthGridWidth * depthGridHeight];

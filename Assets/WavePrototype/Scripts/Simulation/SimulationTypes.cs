@@ -1,4 +1,6 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace WavePrototype.Simulation
@@ -42,7 +44,65 @@ namespace WavePrototype.Simulation
         public float PacketLength;
         public float CrestLength;
         public WaveState State;
-        public WaveSegmentData[] Segments;
+        [SerializeField] private WaveSegmentData[] segments;
+
+        /// <summary>
+        /// Read-only segment state for presentation, diagnostics, and external callers.
+        /// Elements are value copies and the backing authoritative array is never exposed.
+        /// </summary>
+        public WaveSegmentCollection Segments => new WaveSegmentCollection(segments);
+
+        internal WaveSegmentData[] MutableSegments
+        {
+            get => segments;
+            set => segments = value;
+        }
+    }
+
+    /// <summary>
+    /// Allocation-free read-only view over a wave's authoritative segment storage.
+    /// </summary>
+    public readonly struct WaveSegmentCollection : IReadOnlyList<WaveSegmentData>
+    {
+        private readonly WaveSegmentData[] segments;
+
+        internal WaveSegmentCollection(WaveSegmentData[] segments)
+        {
+            this.segments = segments;
+        }
+
+        public int Count => segments == null ? 0 : segments.Length;
+        public int Length => Count;
+        public WaveSegmentData this[int index] => segments[index];
+        public Enumerator GetEnumerator() => new Enumerator(segments);
+        IEnumerator<WaveSegmentData> IEnumerable<WaveSegmentData>.GetEnumerator() => GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+        public struct Enumerator : IEnumerator<WaveSegmentData>
+        {
+            private readonly WaveSegmentData[] segments;
+            private int index;
+
+            internal Enumerator(WaveSegmentData[] segments)
+            {
+                this.segments = segments;
+                index = -1;
+            }
+
+            public WaveSegmentData Current => segments[index];
+            object IEnumerator.Current => Current;
+
+            public bool MoveNext()
+            {
+                int next = index + 1;
+                if (segments == null || next >= segments.Length) return false;
+                index = next;
+                return true;
+            }
+
+            public void Reset() => index = -1;
+            public void Dispose() { }
+        }
     }
 
     [Serializable]
@@ -276,6 +336,24 @@ namespace WavePrototype.Simulation
         public float BreakingFloatingObjectImpulse = 2.15f;
         public float WreckageInertiaScale = 1.65f;
         public float FloatingObjectMaximumSpeed = 9f;
+        public bool RecordBoatControlHistory = true;
+        public int MaximumRecordedBoatControls = 65536;
+        public int PendingInputCompactionThreshold = 1024;
+
+        // Named balance values that were previously embedded in system equations.
+        public float WaveFollowingThrustScale = 5.2f;
+        public float WaveHeadOnDampingScale = 1.45f;
+        public float BreakingBoatDamageThreshold = 0.35f;
+        public float BreakingBoatDamageScale = 5.2f;
+        public float BoatReverseBrakeScale = 3.4f;
+        public float BoatReversePropulsionScale = 0.18f;
+        public float BoatMinimumTurnAuthority = 0.32f;
+        public float BoatFullTurnAuthoritySpeed = 5f;
+        public float GroundingBaseDamage = 0.12f;
+        public float GroundingSpeedDamageScale = 0.16f;
+        public float GroundingBounce = 0.08f;
+        public float RockBaseDamage = 0.22f;
+        public float RockSpeedDamageScale = 0.34f;
 
         // Kept as a source-compatible alias while presentation and external probes migrate
         // to the intentionally distinct cruise and surf limits.
@@ -283,6 +361,181 @@ namespace WavePrototype.Simulation
         {
             get => BoatCruiseSpeed;
             set => BoatCruiseSpeed = value;
+        }
+
+        internal SimulationConfig Clone() => (SimulationConfig)MemberwiseClone();
+    }
+
+    /// <summary>
+    /// Immutable startup snapshot exposed by <see cref="WaveSimulation"/>. Runtime systems
+    /// receive a private cloned configuration, preventing partially applied live edits.
+    /// </summary>
+    public sealed class SimulationConfigSnapshot
+    {
+        public readonly float FixedDeltaTime;
+        public readonly Vector2 WorldHalfExtents;
+        public readonly float BaseWaveSpeed;
+        public readonly float EnergyDecayPerSecond;
+        public readonly float BreakingMinimumEnergyLossPerSecond;
+        public readonly float BreakingEnergyLossPerSecond;
+        public readonly float BreakingIntensityAttackPerSecond;
+        public readonly float BreakingIntensityRecoveryPerSecond;
+        public readonly float BreakingReleaseIntensity;
+        public readonly float BreakingEnergyToFoam;
+        public readonly float FoamEnergyLossPerSecond;
+        public readonly float MinimumFoamEnergy;
+        public readonly float SpentEnergyLossPerSecond;
+        public readonly float MinimumEnergy;
+        public readonly float BreakingSteepness;
+        public readonly float DepthLimitedBreakingRatio;
+        public readonly float BoatInteractionRadius;
+        public readonly float RockInteractionRadius;
+        public readonly float BoatLinearDrag;
+        public readonly float BoatLateralDrag;
+        public readonly float RockEnergyAbsorption;
+        public readonly float WaveBoatForceScale;
+        public readonly float BreakingImpactMultiplier;
+        public readonly float WaveYawScale;
+        public readonly float TravelingImpactMultiplier;
+        public readonly float TravelingLongitudinalScale;
+        public readonly float TravelingLongitudinalPadding;
+        public readonly float TravelingCarrySpeedFraction;
+        public readonly float TravelingYawMultiplier;
+        public readonly float WaveRefractionStrength;
+        public readonly float WaveShoalingDeceleration;
+        public readonly float WaveDeepRecovery;
+        public readonly float WaveSegmentTargetSpacing;
+        public readonly int WaveMaximumSegments;
+        public readonly int WaveEnvironmentSampleInterval;
+        public readonly float WaveSegmentDirectionCoherence;
+        public readonly float WaveSegmentPositionCoherence;
+        public readonly float WaveSegmentLinkBreakMultiplier;
+        public readonly float WaveMinimumActiveSegmentFraction;
+        public readonly float WindSpeed;
+        public readonly Vector2 WindDirection;
+        public readonly float SailingForce;
+        public readonly float BoatCruiseSpeed;
+        public readonly float BoatSurfSpeedCap;
+        public readonly float BoatCruisePropulsionFadeRange;
+        public readonly float BoatSurfExcessDecay;
+        public readonly float BoatCollisionRadius;
+        public readonly float RockImpactRestitution;
+        public readonly float RockTangentialRetention;
+        public readonly float RockContactSkin;
+        public readonly float BoatTurnRate;
+        public readonly int TargetWaveCount;
+        public readonly int DesiredVisibleWaveCount;
+        public readonly float DefaultTargetVisitRadius;
+        public readonly float TargetSafeClearance;
+        public readonly float TargetMinimumRelocationDistance;
+        public readonly int InitialFloatingObjectCount;
+        public readonly float FloatingObjectWaveResponse;
+        public readonly float FloatingObjectDrag;
+        public readonly float CargoCollectionRadius;
+        public readonly float WreckageBoatForce;
+        public readonly float BreakingFloatingObjectImpulse;
+        public readonly float WreckageInertiaScale;
+        public readonly float FloatingObjectMaximumSpeed;
+        public readonly bool RecordBoatControlHistory;
+        public readonly int MaximumRecordedBoatControls;
+        public readonly int PendingInputCompactionThreshold;
+        public readonly float WaveFollowingThrustScale;
+        public readonly float WaveHeadOnDampingScale;
+        public readonly float BreakingBoatDamageThreshold;
+        public readonly float BreakingBoatDamageScale;
+        public readonly float BoatReverseBrakeScale;
+        public readonly float BoatReversePropulsionScale;
+        public readonly float BoatMinimumTurnAuthority;
+        public readonly float BoatFullTurnAuthoritySpeed;
+        public readonly float GroundingBaseDamage;
+        public readonly float GroundingSpeedDamageScale;
+        public readonly float GroundingBounce;
+        public readonly float RockBaseDamage;
+        public readonly float RockSpeedDamageScale;
+        public float MaximumBoatSpeed => BoatCruiseSpeed;
+
+        internal SimulationConfigSnapshot(SimulationConfig source)
+        {
+            FixedDeltaTime = source.FixedDeltaTime;
+            WorldHalfExtents = source.WorldHalfExtents;
+            BaseWaveSpeed = source.BaseWaveSpeed;
+            EnergyDecayPerSecond = source.EnergyDecayPerSecond;
+            BreakingMinimumEnergyLossPerSecond = source.BreakingMinimumEnergyLossPerSecond;
+            BreakingEnergyLossPerSecond = source.BreakingEnergyLossPerSecond;
+            BreakingIntensityAttackPerSecond = source.BreakingIntensityAttackPerSecond;
+            BreakingIntensityRecoveryPerSecond = source.BreakingIntensityRecoveryPerSecond;
+            BreakingReleaseIntensity = source.BreakingReleaseIntensity;
+            BreakingEnergyToFoam = source.BreakingEnergyToFoam;
+            FoamEnergyLossPerSecond = source.FoamEnergyLossPerSecond;
+            MinimumFoamEnergy = source.MinimumFoamEnergy;
+            SpentEnergyLossPerSecond = source.SpentEnergyLossPerSecond;
+            MinimumEnergy = source.MinimumEnergy;
+            BreakingSteepness = source.BreakingSteepness;
+            DepthLimitedBreakingRatio = source.DepthLimitedBreakingRatio;
+            BoatInteractionRadius = source.BoatInteractionRadius;
+            RockInteractionRadius = source.RockInteractionRadius;
+            BoatLinearDrag = source.BoatLinearDrag;
+            BoatLateralDrag = source.BoatLateralDrag;
+            RockEnergyAbsorption = source.RockEnergyAbsorption;
+            WaveBoatForceScale = source.WaveBoatForceScale;
+            BreakingImpactMultiplier = source.BreakingImpactMultiplier;
+            WaveYawScale = source.WaveYawScale;
+            TravelingImpactMultiplier = source.TravelingImpactMultiplier;
+            TravelingLongitudinalScale = source.TravelingLongitudinalScale;
+            TravelingLongitudinalPadding = source.TravelingLongitudinalPadding;
+            TravelingCarrySpeedFraction = source.TravelingCarrySpeedFraction;
+            TravelingYawMultiplier = source.TravelingYawMultiplier;
+            WaveRefractionStrength = source.WaveRefractionStrength;
+            WaveShoalingDeceleration = source.WaveShoalingDeceleration;
+            WaveDeepRecovery = source.WaveDeepRecovery;
+            WaveSegmentTargetSpacing = source.WaveSegmentTargetSpacing;
+            WaveMaximumSegments = source.WaveMaximumSegments;
+            WaveEnvironmentSampleInterval = source.WaveEnvironmentSampleInterval;
+            WaveSegmentDirectionCoherence = source.WaveSegmentDirectionCoherence;
+            WaveSegmentPositionCoherence = source.WaveSegmentPositionCoherence;
+            WaveSegmentLinkBreakMultiplier = source.WaveSegmentLinkBreakMultiplier;
+            WaveMinimumActiveSegmentFraction = source.WaveMinimumActiveSegmentFraction;
+            WindSpeed = source.WindSpeed;
+            WindDirection = source.WindDirection;
+            SailingForce = source.SailingForce;
+            BoatCruiseSpeed = source.BoatCruiseSpeed;
+            BoatSurfSpeedCap = source.BoatSurfSpeedCap;
+            BoatCruisePropulsionFadeRange = source.BoatCruisePropulsionFadeRange;
+            BoatSurfExcessDecay = source.BoatSurfExcessDecay;
+            BoatCollisionRadius = source.BoatCollisionRadius;
+            RockImpactRestitution = source.RockImpactRestitution;
+            RockTangentialRetention = source.RockTangentialRetention;
+            RockContactSkin = source.RockContactSkin;
+            BoatTurnRate = source.BoatTurnRate;
+            TargetWaveCount = source.TargetWaveCount;
+            DesiredVisibleWaveCount = source.DesiredVisibleWaveCount;
+            DefaultTargetVisitRadius = source.DefaultTargetVisitRadius;
+            TargetSafeClearance = source.TargetSafeClearance;
+            TargetMinimumRelocationDistance = source.TargetMinimumRelocationDistance;
+            InitialFloatingObjectCount = source.InitialFloatingObjectCount;
+            FloatingObjectWaveResponse = source.FloatingObjectWaveResponse;
+            FloatingObjectDrag = source.FloatingObjectDrag;
+            CargoCollectionRadius = source.CargoCollectionRadius;
+            WreckageBoatForce = source.WreckageBoatForce;
+            BreakingFloatingObjectImpulse = source.BreakingFloatingObjectImpulse;
+            WreckageInertiaScale = source.WreckageInertiaScale;
+            FloatingObjectMaximumSpeed = source.FloatingObjectMaximumSpeed;
+            RecordBoatControlHistory = source.RecordBoatControlHistory;
+            MaximumRecordedBoatControls = source.MaximumRecordedBoatControls;
+            PendingInputCompactionThreshold = source.PendingInputCompactionThreshold;
+            WaveFollowingThrustScale = source.WaveFollowingThrustScale;
+            WaveHeadOnDampingScale = source.WaveHeadOnDampingScale;
+            BreakingBoatDamageThreshold = source.BreakingBoatDamageThreshold;
+            BreakingBoatDamageScale = source.BreakingBoatDamageScale;
+            BoatReverseBrakeScale = source.BoatReverseBrakeScale;
+            BoatReversePropulsionScale = source.BoatReversePropulsionScale;
+            BoatMinimumTurnAuthority = source.BoatMinimumTurnAuthority;
+            BoatFullTurnAuthoritySpeed = source.BoatFullTurnAuthoritySpeed;
+            GroundingBaseDamage = source.GroundingBaseDamage;
+            GroundingSpeedDamageScale = source.GroundingSpeedDamageScale;
+            GroundingBounce = source.GroundingBounce;
+            RockBaseDamage = source.RockBaseDamage;
+            RockSpeedDamageScale = source.RockSpeedDamageScale;
         }
     }
 }

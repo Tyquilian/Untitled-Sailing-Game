@@ -9,16 +9,16 @@ it instead of constructing internal systems or modifying entity collections.
 
 #### `WaveSimulation(int seed, SimulationConfig config = null, IOceanEnvironmentFactory environmentFactory = null)`
 
-Uses a default mutable `SimulationConfig` and `OceanEnvironmentFactory` when arguments are
-null, then immediately calls `Reset(seed)`. A custom environment factory is primarily useful
-for tests or future scenario maps.
+Treats `SimulationConfig` as a mutable startup builder. The constructor clones it, publishes
+an immutable `SimulationConfigSnapshot`, and calls `Reset(seed)`. Later edits to the caller's
+builder cannot partially alter the running simulation. A custom environment factory is
+primarily useful for tests or future scenario maps.
 
 #### `void Reset(int seed)`
 
-Destroys all current simulation state and reconstructs the world using the existing config
-object and environment factory. IDs, ticks, inputs, events, sources, target state, objects,
-and boats return to deterministic initial values. External references to prior value arrays
-or read-only list contents must be considered stale.
+Destroys all current simulation state and reconstructs the world using the immutable startup
+snapshot and environment factory. IDs, ticks, inputs, events, sources, target state, objects,
+and boats return to deterministic initial values. External value copies must be considered stale.
 
 #### `void Step()`
 
@@ -29,12 +29,12 @@ It has no render-time dependency. Public `Events` afterward belong to that compl
 
 | Property | Contract |
 |---|---|
-| `Config` | The active configuration reference. It is publicly mutable in Batch 13, but changing it after construction can invalidate precomputed rates and determinism. Treat it as construction-time configuration. |
+| `Config` | Immutable startup snapshot used consistently by the runtime |
 | `Environment` | Current environment created during reset |
-| `Waves`, `Boats`, `FloatingObjects` | Read-only views of authoritative lists; contained structs are copies, but `WaveData.Segments` exposes the authoritative array reference and must be treated as read-only |
+| `Waves`, `Boats`, `FloatingObjects` | Non-castable read-only wrappers; contained structs and wave sections are value copies |
 | `Events` | Events from the most recently completed tick only |
 | `WaveSources`, `SwellSystems` | Read-only source/system views owned internally |
-| `RecordedControls` | Applied tick-addressed boat commands retained in memory |
+| `RecordedControls` | Read-only bounded history of applied tick-addressed commands; capacity/recording are startup-configurable |
 | `Target` | Value copy of target state |
 | `CollectedSalvageCount`, `CollectedSalvageValue` | Cumulative cargo totals since reset |
 | `Seed`, `Tick`, `PlayerBoatId`, `SimulatedTime` | Coordinator identity/time state |
@@ -164,7 +164,8 @@ documented to explain behavior, not to recommend direct use.
 - `Reset` clears pending, applied, held input, and cursor.
 - `Queue` validates timing/ID shape, replaces duplicate tick/boat entries, or inserts in
   deterministic tick/boat order.
-- `BeginTick` advances all due commands into held state and recorded history.
+- `BeginTick` advances due commands into held state, optionally records a bounded history,
+  and periodically compacts consumed pending storage.
 - `GetControl` returns held control or the zero default.
 
 ### `WaveSourceSystem`

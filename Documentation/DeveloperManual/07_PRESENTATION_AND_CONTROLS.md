@@ -7,17 +7,17 @@
 
 1. Requests a 120 FPS render target.
 2. Creates `WaveSimulation` with seed 1847.
-3. Creates an orthographic camera.
-4. Creates one static and one dynamic mesh using a vertex-color material.
-5. Initializes render snapshots and geometry.
+3. Creates `PrototypeCameraController` and `PrototypeInputController`.
+4. Initializes `PrototypeSnapshotBuffer` and `PrototypeOceanRenderer`.
+5. Uses `PrototypeDiagnostics` for bounded frame/event/hash diagnostics.
 
 The simulation itself remains fixed at 30 ticks per second.
 
 ## Update and camera behavior
 
-`Update` reads keyboard input, queues the current player control, advances fixed simulation
-ticks through an accumulator, changes follow-camera zoom, rebuilds dynamic geometry, and
-records frame time. At most six ticks are executed in one render frame.
+`Update` coordinates the focused services: input becomes commands, fixed ticks advance
+through an accumulator, the camera accepts zoom input, the ocean renderer rebuilds dynamic
+geometry, and diagnostics record frame time. At most six ticks run per render frame.
 
 `LateUpdate` moves the camera after simulation/render state is prepared:
 
@@ -31,7 +31,7 @@ Follow zoom is clamped to 10.5–27 orthographic units. Map view ignores the fol
 
 ## Render interpolation
 
-The presentation keeps previous/current dictionaries keyed by stable wave and boat IDs.
+`PrototypeSnapshotBuffer` keeps previous/current dictionaries keyed by stable wave and boat IDs.
 Before a simulation step it swaps dictionaries; afterward it captures current authoritative
 state. Render alpha is `accumulator / fixedDeltaTime`, or one while paused.
 
@@ -50,7 +50,7 @@ to `WaveSimulation`.
 
 ### Static mesh
 
-`RebuildStaticMesh` creates:
+`PrototypeOceanRenderer.RebuildStatic` creates:
 
 - a 225×125 bathymetry grid covering the full world;
 - a dark outer rock circle; and
@@ -61,7 +61,7 @@ are set manually to avoid an expensive bounds recalculation and incorrect cullin
 
 ### Dynamic mesh
 
-`BuildDynamicMesh` recreates vertex/color/index lists every rendered frame for:
+`PrototypeOceanRenderer.BuildDynamic` recreates vertex/color/index lists every rendered frame for:
 
 - optional diagnostic swell-system bands and source boundaries;
 - all active wave sections;
