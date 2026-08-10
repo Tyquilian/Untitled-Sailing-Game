@@ -13,12 +13,12 @@ The environment is the central gameplay system. Waves, bathymetry, islands, reef
 
 - The prototype may be a free-roaming arcade sailing sandbox rather than only a technical visualization.
 - Sailing must stay immediate and forgiving. Advanced sail trim and simulation-heavy sailing are not current goals.
-- For the current 450×250 map, Batch 13 normal gameplay seeds 20 map-spanning fronts from
-  one unified 2.3–2.7-second swell stream. Observed population remains an outcome of period,
-  propagation, terrain loss, and coherent-front lifetime. Seven fronts in the local view is
-  a diagnostic reference rather than an enforced distribution. The earlier 40-front
-  short-period profile and 80-world/30-local short-crest targets remain historical
-  comparisons.
+- Batch 16 expands the playable sea to 900×500 units, four times the Batch 15 area. Normal
+  gameplay reconstructs its initial ordered phases from source-to-exit travel span and the
+  resolved 2.3–2.7-second swell period rather than a fixed count. Seed 1847 resolves 39 fronts;
+  observed population remains an outcome of cadence, propagation, terrain loss, and coherent
+  lifetime. Seven fronts in the local view remains a diagnostic reference, not enforcement.
+  The 450×250/20-front and earlier short-crest targets remain historical comparisons.
 - A 1,000-wave scenario remains a required architecture and performance benchmark, not the preferred visual density. A future batch may replace fixed world and visible counts with an explicit target-density model that scales with map area and camera coverage.
 - Deterministic analytic bathymetry and deterministic height-dependent rock generation are allowed. Bathymetry should favor broad continental and insular shelves around a mostly uniform deep basin, not detailed or noisy seabed simulation. Depth beyond a wave packet's useful influence should not affect its surface behavior.
 - Large maps, clustered navigation hazards, strong wave-to-boat displacement, yaw, slowdown, and temporary surfing are core prototype behavior.
@@ -69,20 +69,20 @@ The environment is the central gameplay system. Waves, bathymetry, islands, reef
 
 ## Current engineering priorities
 
-1. Preserve Batch 3's successful environmental feel with a 20-front long-period initial
-   reconstruction and phase-authoritative map-spanning swell in the 450×250 playable world.
-   Evaluate the resulting no-refill density by playtesting rather than silently enforcing
-   a count.
+1. Preserve Batch 3's successful environmental feel with the span-derived long-period
+   reconstruction and phase-authoritative map-spanning swell in the 900×500 playable world.
+   Evaluate the resulting 37–42-front population and four-front local observation by
+   playtesting rather than silently enforcing a count.
 2. Use broad continental and insular shelves to create land, shoaling water, and clustered navigation hazards while leaving deep water mechanically quiet.
 3. Keep the roaming target optional, deterministic, locally safe, and limited to a visit counter plus debug controls.
 4. Maintain continuous deterministic cadence through one normal-ocean swell stream. Keep
    cross-sea definitions dormant until a storm or scenario explicitly owns them.
 5. Keep authoritative state privately owned behind the deterministic coordinator and retain tick-addressed boat-control replay.
-6. Maintain separate 20-front playable, 320-front secondary, and 1,000-front
-   architecture/performance profiles. Higher-count profiles should use oceans long enough
-   to hold distinct ordered phases rather than duplicate phases plus population refills.
-   Use a 10,000-front enlarged-world diagnostic to expose scheduling limits; it is not a
-   real-time gate.
+6. Maintain separate span-derived playable, 320-front secondary, and 1,000-front
+   architecture/performance profiles. Explicit higher-count profiles should use oceans long
+   enough to hold distinct ordered phases rather than duplicate phases plus population
+   refills. Use a 10,000-front enlarged-world diagnostic to expose scheduling limits; it is
+   not a real-time gate.
 7. Playtest the Batch 14 skiff/cutter contrast before adding more profiles. Preserve the
    single-impulse crest rule and keep vessel selection as a debug tool until a game direction
    gives it a player-facing purpose.
@@ -98,6 +98,10 @@ The environment is the central gameplay system. Waves, bathymetry, islands, reef
     brute-force reference path and exact ordered interaction equations. This clears the way
     for a measured map expansion, but does not by itself authorize simulation streaming or
     reduced-rate wave propagation.
+11. Batch 16 establishes a 900×500 exploration baseline. Full-width crests keep approximately
+    their former section spacing, shelf-driven rocks increase to 640 while falling in overall
+    area density, and floating objects increase to 48. Further expansion requires playtest
+    evidence that distance, landmarks, targets, and environmental encounters remain useful.
 
 ## Architectural principles retained from v1.0
 

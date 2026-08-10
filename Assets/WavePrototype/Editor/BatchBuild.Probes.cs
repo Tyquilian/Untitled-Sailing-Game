@@ -42,8 +42,8 @@ namespace WavePrototype.Editor
                 SwellSystemData system = simulation.SwellSystems[systemIndex];
                 Require(system.SourceId == 1,
                     $"Unified swell stream {system.Id} belongs to source {system.SourceId} instead of the western generator.");
-                Require(system.InitialPacketCount == simulation.Config.TargetWaveCount,
-                    $"Unified stream {system.Id} begins with {system.InitialPacketCount}/{simulation.Config.TargetWaveCount} fronts.");
+                Require(system.InitialPacketCount == simulation.InitialWaveTarget,
+                    $"Unified stream {system.Id} begins with {system.InitialPacketCount}/{simulation.InitialWaveTarget} fronts.");
                 Require(system.EmittedPacketCount == system.InitialPacketCount,
                     $"Initial stream {system.Id} reports {system.EmittedPacketCount}/{system.InitialPacketCount} emitted fronts.");
                 Require(system.ActivePacketCount == system.InitialPacketCount,

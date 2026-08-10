@@ -38,7 +38,7 @@ namespace WavePrototype.Editor
             simulation.Reset(7411);
             Require(simulation.Config.TargetWaveCount == 2 && simulation.Waves.Count == 2,
                 "Runtime configuration changed after its startup builder was mutated.");
-            Require(simulation.Config.WorldHalfExtents == new Vector2(225f, 125f),
+            Require(simulation.Config.WorldHalfExtents == new Vector2(450f, 250f),
                 "Runtime world dimensions changed after startup configuration mutation.");
 
             // Public views must not be down-castable to their authoritative List/array storage.

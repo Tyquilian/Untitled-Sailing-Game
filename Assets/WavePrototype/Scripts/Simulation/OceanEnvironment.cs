@@ -191,7 +191,12 @@ namespace WavePrototype.Simulation
         {
             var random = new DeterministicRandom(seed ^ 0x5A17);
             var centers = new List<Vector2>(48);
-            float mapScale = Mathf.Sqrt((halfExtents.x * halfExtents.y) / (180f * 100f));
+            float areaScale = Mathf.Max(0.05f,
+                halfExtents.x * halfExtents.y / (225f * 125f));
+            float mapScale = 1.25f * Mathf.Sqrt(areaScale);
+            float inverseLinearScale = 1f / Mathf.Sqrt(areaScale);
+            int targetRockCount = Mathf.Max(24,
+                Mathf.RoundToInt(320f * Mathf.Sqrt(areaScale)));
 
             for (int attempt = 0; attempt < 6800 && centers.Count < 46; attempt++)
             {
@@ -200,7 +205,8 @@ namespace WavePrototype.Simulation
                     random.Range(-halfExtents.y + 7f, halfExtents.y - 7f));
                 float depth = SampleDepth(candidate);
                 float slope = SampleDepthGradient(candidate).magnitude;
-                if (depth < 0.28f || depth > 3.35f || slope < 0.032f) continue;
+                if (depth < 0.28f || depth > 3.35f ||
+                    slope < 0.032f * inverseLinearScale) continue;
                 bool separated = true;
                 for (int i = 0; i < centers.Count; i++)
                     if ((centers[i] - candidate).sqrMagnitude < 92f * mapScale * mapScale) { separated = false; break; }
@@ -222,14 +228,17 @@ namespace WavePrototype.Simulation
             }
 
             // A sparse contour sweep joins some clusters into shelf-edge reef lines.
-            for (float y = -halfExtents.y + 3f; y < halfExtents.y - 3f && rocks.Count < 320; y += 3.4f)
+            for (float y = -halfExtents.y + 3f;
+                 y < halfExtents.y - 3f && rocks.Count < targetRockCount; y += 3.4f)
             {
-                for (float x = -halfExtents.x + 3f; x < halfExtents.x - 3f && rocks.Count < 320; x += 3.4f)
+                for (float x = -halfExtents.x + 3f;
+                     x < halfExtents.x - 3f && rocks.Count < targetRockCount; x += 3.4f)
                 {
                     Vector2 candidate = new Vector2(x, y) + random.InsideUnitCircle() * 1.05f;
                     float depth = SampleDepth(candidate);
                     float slope = SampleDepthGradient(candidate).magnitude;
-                    if (depth > 0.28f && depth < 3.5f && slope > 0.026f && random.Value() < 0.34f)
+                    if (depth > 0.28f && depth < 3.5f &&
+                        slope > 0.026f * inverseLinearScale && random.Value() < 0.34f)
                         AddRockIfSeparated(candidate, random.Range(0.4f, 1.08f));
                 }
             }

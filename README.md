@@ -1,12 +1,13 @@
-# Tactical Sailing — Deterministic Spatial Broadphase (Batch 15)
+# Tactical Sailing — Exploration-Scale Ocean (Batch 16)
 
-Batch 15 prepares the sandbox for gradual ocean expansion by culling distant interaction
-candidates. It does not change sailing, wave tuning, map content, vessel profiles, or event
-order. A retained brute-force reference path is compared against the spatial path tick by tick.
+Batch 16 doubles both world dimensions, producing a 900×500 ocean with four times the former
+area. Initial swell phases are derived from travel span and the resolved period, shelves are
+physically broader, and absolute hazard/object counts grow without preserving cramped-map
+density. Sailing and impact tuning remain unchanged.
 
 ## Run the latest build
 
-Open `Builds/Batch15/TacticalSailingBatch15.exe` and keep the complete `Batch15` directory
+Open `Builds/Batch16/TacticalSailingBatch16.exe` and keep the complete `Batch16` directory
 together. Earlier batch builds remain preserved.
 
 The source project targets Unity `6000.3.2f1`. Open
@@ -38,40 +39,40 @@ The source project targets Unity `6000.3.2f1`. Open
 The `Y` switch and the vessel-spawn controls are comparison tools, not proposed gameplay
 actions. With `F3` enabled, orange points show each vessel's authoritative hull samples.
 
-## Batch 15 changes
+## Batch 16 changes
 
-- Rebuilds a deterministic dense-grid index over active predicted crest sections each tick.
-- Culls distant wave/boat and wave/floating-object pairs before running the unchanged exact
-  interaction equations in original wave/segment order.
-- Reuses the static rock grid for deterministic swept-contact candidates while preserving a
-  brute-force fallback for custom environments.
-- Retains query buffers and cell lists across ticks and exposes culling counts in the F3
-  diagnostics overlay.
-- Adds an immutable startup switch for broadphase/brute-force comparison without including
-  execution policy in authoritative state hashes.
-- Preserves the Batch 14 arcade-skiff and heavy-cutter comparison tools and behavior.
+- Expands the playable ocean from 450×250 to 900×500 units and doubles nominal crossing time.
+- Derives the normal initial phase count from source-to-exit span divided by packet spacing.
+- Preserves zero as the disabled-ocean setting and positive counts as explicit test overrides.
+- Raises the crest-section ceiling from 20 to 40 to preserve physical sampling resolution.
+- Stretches the established continental/insular shelves into more recognizable regions.
+- Scales shelf-driven rocks from 320 to 640 and floating cargo/wreckage from 24 to 48.
+- Scales initial boat positions with the map and exposes the derived initial count in the HUD.
 
 ## Validation summary
 
 Reference editor validation passed on 2026-08-10:
 
 - deterministic reference run: 900/900 matching ticks;
-- broadphase/brute-force comparison: 480/480 identical ticks;
-- wave/boat candidate checks: `8,822 / 620,460` potential;
-- floating-object candidate checks: `33,030 / 4,787,580` potential;
-- warmed 240-tick spatial probe: zero generation-0 collections;
-- same-process 320-front sample: `2.766s` spatial / `3.672s` brute force;
-- same-process 1,000-front sample: `3.297s` spatial / `4.531s` brute force;
-- deterministic reference run: unchanged `FAB08900B346EEB8` final hash; and
+- derived reference/expanded phases: `19 / 39` at identical `22.71`-unit spacing;
+- normal 30-second population range: `37–42`, ending at 38;
+- local/world/reference fronts: `4 / 38 / 7`;
+- shelf hazards: `320 → 640`;
+- average expanded crest: `519.17` units with 40-section capacity;
+- nominal width crossing: `72.0` seconds;
+- deterministic final hash: `A8991F06A66C842A`;
+- 1,000-front stress rate: approximately `59` ticks/second;
+- 10,000-front diagnostic: approximately `2.2–2.5` ticks/second for 30 ticks;
+- packaged frame probe: `8.71ms` average / `13.53ms` p99; and
 - all prior wave, vessel, collision, replay, source, target, and object regressions passed.
 
-See `BATCH15_DETERMINISTIC_SPATIAL_BROADPHASE.md` for the focused design record and
+See `BATCH16_EXPLORATION_SCALE.md` for the focused design record and
 `Documentation/CODEX_PROJECT_CONTEXT.md` for the compact working context.
 
 Build from PowerShell:
 
 ```powershell
-& 'C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.com' -batchmode -nographics -projectPath . -executeMethod WavePrototype.Editor.BatchBuild.BuildBatch15 -quit -logFile build-batch15.log
+& 'C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.com' -batchmode -nographics -projectPath . -executeMethod WavePrototype.Editor.BatchBuild.BuildBatch16 -quit -logFile build-batch16.log
 ```
 
 The packaged player also accepts `-smoketest`, `-frametest`, and `-capturepreview`.
@@ -79,6 +80,7 @@ The preview mode writes separate skiff, heavy-cutter, and full-map PNGs beside t
 
 ## Playtest question
 
-Does Batch 15 feel indistinguishable from Batch 14 during ordinary play? With F3 enabled,
-watch the SPACE and GRID counters while moving through swell, wreckage, and rock clusters.
-Any behavioral difference is a regression rather than an intended tuning change.
+Does the larger sea create worthwhile travel and discovery, or merely longer empty intervals?
+Try normal follow view, full-map navigation, target pursuit, both vessel profiles, and several
+shelf crossings. The main questions are landmark readability, encounter frequency, and
+whether broad shelves now give breaking fronts enough physical room.

@@ -29,14 +29,15 @@ namespace WavePrototype.Simulation
             this.environment = environment;
         }
 
-        public void Reset(int seed, List<FloatingObjectData> objects, Vector2 playerPosition)
+        public void Reset(int seed, List<FloatingObjectData> objects, Vector2 playerPosition,
+            bool populateWorld)
         {
             random = new DeterministicRandom(seed ^ 0x71C43);
             nextObjectId = 1;
             CollectedCount = 0;
             CollectedValue = 0f;
             objects.Clear();
-            int target = config.TargetWaveCount <= 0
+            int target = !populateWorld
                 ? 0 : Mathf.Max(0, config.InitialFloatingObjectCount);
             for (int index = 0; index < target; index++)
             {

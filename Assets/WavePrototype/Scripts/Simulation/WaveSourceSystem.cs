@@ -131,8 +131,8 @@ namespace WavePrototype.Simulation
             if (targetCount <= 0) return;
             EnsureContinuousStreams();
 
-            // The source clock is authoritative. TargetWaveCount seeds an already-running sea;
-            // it does not authorize population-driven refills or suppress scheduled phases.
+            // The source clock is authoritative. The resolved initial target reconstructs an
+            // already-running sea; it does not authorize population refills or suppress phases.
             for (int sourceIndex = 0; sourceIndex < sources.Count; sourceIndex++)
             {
                 WaveSourceData source = sources[sourceIndex];
@@ -179,6 +179,26 @@ namespace WavePrototype.Simulation
 
         public float DeepWaterCruiseSpeed(float packetLength)
             => Mathf.Min(config.BaseWaveSpeed, 3.2f + Mathf.Sqrt(Mathf.Max(0.1f, packetLength)) * 2.45f);
+
+        public int ResolveInitialWaveCount(int configuredCount)
+        {
+            if (configuredCount >= 0) return configuredCount;
+            EnsureContinuousStreams();
+            int count = 0;
+            for (int sourceIndex = 0; sourceIndex < sources.Count; sourceIndex++)
+            {
+                WaveSourceData source = sources[sourceIndex];
+                if (!source.Enabled) continue;
+                int systemIndex = FindSystemIndex(streamSystemIds[sourceIndex]);
+                if (systemIndex < 0) continue;
+                SwellSystemData system = swellSystems[systemIndex];
+                Vector2 boundary = (source.SegmentStart + source.SegmentEnd) * 0.5f;
+                float travelSpan = DistanceToWorldExit(boundary, system.Direction);
+                count += Mathf.Max(1, Mathf.FloorToInt((travelSpan - 1f) /
+                    Mathf.Max(1f, system.PacketSpacing)));
+            }
+            return count;
+        }
 
         private void EnsureContinuousStreams()
         {

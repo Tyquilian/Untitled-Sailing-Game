@@ -312,7 +312,7 @@ namespace WavePrototype.Simulation
     public sealed class SimulationConfig
     {
         public float FixedDeltaTime = 1f / 30f;
-        public Vector2 WorldHalfExtents = new Vector2(225f, 125f);
+        public Vector2 WorldHalfExtents = new Vector2(450f, 250f);
         public float BaseWaveSpeed = 8.6f;
         public float EnergyDecayPerSecond = 0.012f;
         public float BreakingMinimumEnergyLossPerSecond = 0.14f;
@@ -344,7 +344,7 @@ namespace WavePrototype.Simulation
         public float WaveShoalingDeceleration = 7f;
         public float WaveDeepRecovery = 0.72f;
         public float WaveSegmentTargetSpacing = 13.5f;
-        public int WaveMaximumSegments = 20;
+        public int WaveMaximumSegments = 40;
         public int WaveEnvironmentSampleInterval = 4;
         public float WaveSegmentDirectionCoherence = 1.4f;
         public float WaveSegmentPositionCoherence = 1.15f;
@@ -362,12 +362,15 @@ namespace WavePrototype.Simulation
         public float RockTangentialRetention = 0.82f;
         public float RockContactSkin = 0.025f;
         public float BoatTurnRate = 72f;
-        public int TargetWaveCount = 20;
+        // Negative derives an ordered initial phase count from map travel span and the
+        // resolved swell period. Zero disables the persistent ocean; positive values are
+        // explicit fixed-count validation/stress profiles.
+        public int TargetWaveCount = -1;
         public int DesiredVisibleWaveCount = 7;
         public float DefaultTargetVisitRadius = 5f;
         public float TargetSafeClearance = 4.5f;
         public float TargetMinimumRelocationDistance = 36f;
-        public int InitialFloatingObjectCount = 24;
+        public int InitialFloatingObjectCount = 48;
         public float FloatingObjectWaveResponse = 0.42f;
         public float FloatingObjectDrag = 0.34f;
         public float CargoCollectionRadius = 1.15f;

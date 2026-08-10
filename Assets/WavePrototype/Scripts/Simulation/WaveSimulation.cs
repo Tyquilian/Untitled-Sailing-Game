@@ -51,6 +51,7 @@ namespace WavePrototype.Simulation
         public int Seed { get; private set; }
         public ulong Tick { get; private set; }
         public int PlayerBoatId { get; private set; }
+        public int InitialWaveTarget { get; private set; }
         public float SimulatedTime => Tick * Config.FixedDeltaTime;
         public SpatialBroadphaseSnapshot SpatialBroadphase => new SpatialBroadphaseSnapshot(
             runtimeConfig.EnableSpatialBroadphase,
@@ -143,13 +144,15 @@ namespace WavePrototype.Simulation
             waveBoatInteractionSystem = new WaveBoatInteractionSystem(runtimeConfig);
             boatMotionSystem = new BoatMotionSystem(runtimeConfig, Environment);
             waveSourceSystem.Reset(seed);
+            InitialWaveTarget = waveSourceSystem.ResolveInitialWaveCount(
+                runtimeConfig.TargetWaveCount);
             PlayerBoatId = PrototypeScenario.AddInitialBoats(this);
             targetMarkerSystem = new TargetMarkerSystem(runtimeConfig, Environment);
             targetMarkerSystem.Reset(seed, boats[FindBoatIndex(PlayerBoatId)].Position);
             floatingObjectSystem = new FloatingObjectSystem(runtimeConfig, Environment);
             floatingObjectSystem.Reset(seed, floatingObjects,
-                boats[FindBoatIndex(PlayerBoatId)].Position);
-            waveSourceSystem.PopulateInitialWorld(waves, runtimeConfig.TargetWaveCount);
+                boats[FindBoatIndex(PlayerBoatId)].Position, InitialWaveTarget > 0);
+            waveSourceSystem.PopulateInitialWorld(waves, InitialWaveTarget);
         }
 
         public bool QueueBoatControl(BoatControlCommand command)
@@ -333,7 +336,7 @@ namespace WavePrototype.Simulation
                 waves[i] = wave;
             }
 
-            waveSourceSystem.MaintainPopulation(waves, runtimeConfig.TargetWaveCount, Tick);
+            waveSourceSystem.MaintainPopulation(waves, InitialWaveTarget, Tick);
             events.AddRange(pendingEvents);
         }
 

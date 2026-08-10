@@ -1,7 +1,7 @@
 # Codex Working Context
 
 This is a compact working reference, not the human developer manual. Current baseline:
-Batch 15 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
+Batch 16 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
 
 ## Non-negotiable rules
 
@@ -18,13 +18,15 @@ Batch 15 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
 
 ## Current baseline
 
-- World 450×250; one normalized continent/island shelf map; 320 rocks at seed 1847.
-- Initial 20 map-spanning fronts; observed 15–23 after one injected front.
+- World 900×500 (4× Batch 15 area); one normalized continent/island shelf map; 640 rocks.
+- Negative `TargetWaveCount` derives ordered startup phases from source travel span / packet
+  spacing; zero disables the sea; positive values remain explicit test/stress overrides.
+- Seed 1847 derives 39 initial map-spanning fronts; observed 37–42 after one injected front.
 - Period 2.3–2.7 s; seed 1847 selects 76 ticks ≈2.53 s.
-- 20 sections/front, target spacing 13.5, environment sample every 4 ticks.
+- Up to 40 sections/front, target spacing 13.5, environment sample every 4 ticks.
 - One western source/system; two dormant cross-sea definitions.
 - Partial breaking transfers coherent loss to non-force foam and can resume traveling.
-- Three initial arcade-skiff boats, optional target, 24 initial cargo/wreckage objects.
+- Three initial arcade-skiff boats, optional target, 48 initial cargo/wreckage objects.
 - Immutable arcade-skiff and heavy-cutter profiles. The skiff preserves Batch 13 values.
 - Heavy cutter: mass 24, 6.2 x 2.8 hull, 1.5 collision radius, five hull samples.
 - Wave and land checks use hull samples but still contribute once per crest/boat identity.
@@ -37,7 +39,8 @@ Batch 15 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
 ## Known hazards
 
 - `SampleWaveDensity` counts a parent front when an active crest section intersects the view.
-- `TargetWaveCount <= 0` also disables source maintenance and initial floating objects.
+- `TargetWaveCount < 0` derives the playable reconstruction; exactly zero disables source
+  maintenance and initial floating objects.
 - Runtime config is immutable; use a new `SimulationConfig` builder and reconstruct the
   simulation to change startup tuning.
 - Recorded boat controls retain the latest 65,536 commands by default; configure nonpositive
@@ -50,6 +53,9 @@ Batch 15 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
   culling alone is not multi-rate simulation or world streaming.
 - Batch 15 same-process samples measured spatial/brute CPU time at 2.766/3.672s for
   320 fronts over 300 ticks and 3.297/4.531s for 1,000 fronts over 120 ticks.
+- Batch 16 reference: 72s nominal width crossing, local/world fronts 4/38 after 900 ticks,
+  1,000-front stress 59 ticks/s, 10k diagnostic 2.2–2.5 ticks/s for 30 ticks. Packaged
+  frame probe: 8.71ms average / 13.53ms p99 with 8,251 dynamic vertices.
 - Land and waves use representative hull samples; rocks still use swept profile circles rather
   than oriented hull polygons.
 - Same-build/platform determinism only; replay contains boat controls, not debug operations.
@@ -57,15 +63,14 @@ Batch 15 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
 ## Commands
 
 Validation execute method: `WavePrototype.Editor.BatchBuild.Validate`.
-Current build execute method: `WavePrototype.Editor.BatchBuild.BuildBatch15`.
+Current build execute method: `WavePrototype.Editor.BatchBuild.BuildBatch16`.
 Player modes: `-smoketest`, `-frametest`, `-capturepreview`.
 
 ## Roadmap
 
-1. Batch 16: gradual exploration-scale map and phase count derived from span/period.
-2. Batch 17: bounded ordered storm/cross-sea event.
-3. Later vessel pass: more profiles only after the two-hull playtest establishes useful scale.
-4. Product gate: deeper environmental sandbox or minimal cargo/damage/landmark game.
+1. Batch 17: bounded ordered storm/cross-sea event, if the expanded normal ocean playtests well.
+2. Later vessel pass: more profiles only after the two-hull playtest establishes useful scale.
+3. Product gate: deeper environmental sandbox or minimal cargo/damage/landmark game.
 
 The human developer manual was intentionally removed from the workspace after archival in
 Git commit `7172c9c`. Use source, focused batch records, and this compact context for current
