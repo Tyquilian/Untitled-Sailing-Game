@@ -151,6 +151,7 @@ namespace WavePrototype.Simulation
     public struct BoatData
     {
         public int Id;
+        public VesselProfileId Profile;
         public Vector2 Position;
         public Vector2 Velocity;
         public float Heading;
@@ -246,6 +247,8 @@ namespace WavePrototype.Simulation
 
     public readonly struct WaveDensitySample
     {
+        // WorldCount is authoritative parent-front population. LocalCount counts parent
+        // fronts with at least one active crest section intersecting the sampled view.
         public readonly int WorldCount;
         public readonly int LocalCount;
         public readonly float Radius;
@@ -339,6 +342,8 @@ namespace WavePrototype.Simulation
         public bool RecordBoatControlHistory = true;
         public int MaximumRecordedBoatControls = 65536;
         public int PendingInputCompactionThreshold = 1024;
+        public VesselProfileDefinition ArcadeSkiffProfile = VesselProfileDefinition.ArcadeSkiff;
+        public VesselProfileDefinition HeavyCutterProfile = VesselProfileDefinition.HeavyCutter;
 
         // Named balance values that were previously embedded in system equations.
         public float WaveFollowingThrustScale = 5.2f;
@@ -364,6 +369,9 @@ namespace WavePrototype.Simulation
         }
 
         internal SimulationConfig Clone() => (SimulationConfig)MemberwiseClone();
+
+        internal VesselProfileDefinition GetVesselProfile(VesselProfileId id)
+            => id == VesselProfileId.HeavyCutter ? HeavyCutterProfile : ArcadeSkiffProfile;
     }
 
     /// <summary>
@@ -439,6 +447,8 @@ namespace WavePrototype.Simulation
         public readonly bool RecordBoatControlHistory;
         public readonly int MaximumRecordedBoatControls;
         public readonly int PendingInputCompactionThreshold;
+        public readonly VesselProfileDefinition ArcadeSkiffProfile;
+        public readonly VesselProfileDefinition HeavyCutterProfile;
         public readonly float WaveFollowingThrustScale;
         public readonly float WaveHeadOnDampingScale;
         public readonly float BreakingBoatDamageThreshold;
@@ -523,6 +533,8 @@ namespace WavePrototype.Simulation
             RecordBoatControlHistory = source.RecordBoatControlHistory;
             MaximumRecordedBoatControls = source.MaximumRecordedBoatControls;
             PendingInputCompactionThreshold = source.PendingInputCompactionThreshold;
+            ArcadeSkiffProfile = source.ArcadeSkiffProfile;
+            HeavyCutterProfile = source.HeavyCutterProfile;
             WaveFollowingThrustScale = source.WaveFollowingThrustScale;
             WaveHeadOnDampingScale = source.WaveHeadOnDampingScale;
             BreakingBoatDamageThreshold = source.BreakingBoatDamageThreshold;
@@ -537,5 +549,8 @@ namespace WavePrototype.Simulation
             RockBaseDamage = source.RockBaseDamage;
             RockSpeedDamageScale = source.RockSpeedDamageScale;
         }
+
+        public VesselProfileDefinition GetVesselProfile(VesselProfileId id)
+            => id == VesselProfileId.HeavyCutter ? HeavyCutterProfile : ArcadeSkiffProfile;
     }
 }

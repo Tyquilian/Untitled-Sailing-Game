@@ -32,7 +32,10 @@ namespace WavePrototype.Presentation
                 else
                     app.SpawnSwellFront(cursor);
             }
-            if (Input.GetKeyDown(KeyCode.B)) app.SpawnBoat(camera.ScreenToWorld(Input.mousePosition));
+            if (Input.GetKeyDown(KeyCode.B)) app.SpawnBoat(camera.ScreenToWorld(Input.mousePosition),
+                Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)
+                    ? VesselProfileId.HeavyCutter : VesselProfileId.ArcadeSkiff);
+            if (Input.GetKeyDown(KeyCode.Y)) app.TogglePlayerVesselProfile();
             if (Input.GetKeyDown(KeyCode.C)) app.SpawnFloatingObject(
                 FloatingObjectKind.Cargo, camera.ScreenToWorld(Input.mousePosition));
             if (Input.GetKeyDown(KeyCode.X)) app.SpawnFloatingObject(

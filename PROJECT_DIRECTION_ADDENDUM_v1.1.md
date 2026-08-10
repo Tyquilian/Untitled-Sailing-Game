@@ -25,7 +25,9 @@ The environment is the central gameplay system. Waves, bathymetry, islands, reef
 - Ocean size should increase gradually when each expansion supports exploration and meaningful travel. A future open-world sailing direction is a valid product gate, but does not yet authorize streaming, persistence, progression, or other open-world subsystems.
 - Broad continuous wavefronts may belong to authoritative swell systems that establish shared direction, period, scale, energy envelopes, source timing, and calm intervals without multiplying per-front force. Longitudinal trains of narrow, easily sidestepped packets are not the desired overarching wave structure.
 - Broad crests may be segmented into connected authoritative sections so depth, refraction, rocks, land, breaking, and protected-water gaps can vary locally along one front. Segmentation must preserve one force contribution per crest/boat encounter and must not become a fluid-surface simulation.
-- Larger and heavier player vessels are an intended future capability. Vessel profiles and broad-hull wave interaction should follow segmented wavefront coherence rather than treating large ships as point-sized versions of the current boat.
+- Larger and heavier player vessels are an intended capability. Batch 14 establishes an
+  arcade-skiff baseline and a heavy-cutter comparison profile. Broad hulls sample multiple
+  representative points while retaining one force contribution per crest identity.
 - One optional roaming target marker with an adjustable visit radius and simple visit counter is allowed as lightweight exploration structure. It is not a buoy course, checkpoint chain, timer, score, physical obstacle, or forced objective.
 - Propulsion cruise speed and wave-enabled surf speed are separate concepts. Waves may temporarily push a boat beyond its propulsion cruise speed.
 - Non-breaking swell should pass beneath and overtake a stationary hull rather than behave as a persistent moving force wall. Strong sustained displacement, yaw, surfing, and damage should be concentrated in energetic breaking encounters.
@@ -81,7 +83,9 @@ The environment is the central gameplay system. Waves, bathymetry, islands, reef
    to hold distinct ordered phases rather than duplicate phases plus population refills.
    Use a 10,000-front enlarged-world diagnostic to expose scheduling limits; it is not a
    real-time gate.
-7. Stabilize segmented wavefront coherence and individual crest passage through playtesting before introducing larger vessel profiles.
+7. Playtest the Batch 14 skiff/cutter contrast before adding more profiles. Preserve the
+   single-impulse crest rule and keep vessel selection as a debug tool until a game direction
+   gives it a player-facing purpose.
 8. Keep analytic deep-water generation on hold while persistent discrete streams are
    evaluated. Analytic generation may later feed the source boundary without replacing
    segmented local authority.

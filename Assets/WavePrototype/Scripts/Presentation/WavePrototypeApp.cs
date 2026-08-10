@@ -63,7 +63,7 @@ namespace WavePrototype.Presentation
                     simulation.SetPlayerControl(1f, Mathf.Sin(i * 0.08f) * 0.45f);
                     simulation.Step();
                 }
-                Debug.Log($"[WAVE-SMOKE] PASS batch=13 ticks={simulation.Tick} waves={simulation.Waves.Count} segments={simulation.ActiveWaveSegmentCount}/{simulation.TotalWaveSegmentCount} systems={simulation.SwellSystems.Count} sources={simulation.ActiveWaveSourceCount}/{simulation.WaveSources.Count} objects={simulation.FloatingObjects.Count} salvage={simulation.CollectedSalvageCount}/{simulation.CollectedSalvageValue:0} rocks={simulation.Environment.Rocks.Count} visits={simulation.Target.VisitCount} hash={simulation.CalculateStateHash():X16}");
+                Debug.Log($"[WAVE-SMOKE] PASS batch=14 ticks={simulation.Tick} waves={simulation.Waves.Count} segments={simulation.ActiveWaveSegmentCount}/{simulation.TotalWaveSegmentCount} systems={simulation.SwellSystems.Count} sources={simulation.ActiveWaveSourceCount}/{simulation.WaveSources.Count} objects={simulation.FloatingObjects.Count} salvage={simulation.CollectedSalvageCount}/{simulation.CollectedSalvageValue:0} rocks={simulation.Environment.Rocks.Count} visits={simulation.Target.VisitCount} profile={simulation.Boats[0].Profile} hash={simulation.CalculateStateHash():X16}");
                 Application.Quit(0);
             }
             else if (Array.Exists(arguments, value => string.Equals(value, "-capturepreview", StringComparison.OrdinalIgnoreCase)))
@@ -81,15 +81,19 @@ namespace WavePrototype.Presentation
             automatedTestDrive = true;
             for (int i = 0; i < 90; i++) yield return null;
             string buildDirectory = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
-            CaptureCamera(Path.Combine(buildDirectory, "Batch13-preview.png"));
+            CaptureCamera(Path.Combine(buildDirectory, "Batch14-preview.png"));
+            simulation.SetBoatProfile(simulation.PlayerBoatId, VesselProfileId.HeavyCutter);
+            InitializeSnapshots();
+            yield return null;
+            CaptureCamera(Path.Combine(buildDirectory, "Batch14-heavy-preview.png"));
             Vector3 previousPosition = worldCamera.transform.position;
             float previousSize = worldCamera.orthographicSize;
             worldCamera.transform.position = new Vector3(0f, 0f, -10f);
             worldCamera.orthographicSize = cameraController.GetMapViewSize();
-            CaptureCamera(Path.Combine(buildDirectory, "Batch13-map-preview.png"));
+            CaptureCamera(Path.Combine(buildDirectory, "Batch14-map-preview.png"));
             worldCamera.transform.position = previousPosition;
             worldCamera.orthographicSize = previousSize;
-            Debug.Log("[WAVE-PREVIEW] Captured Batch 13 follow and map previews in " + buildDirectory);
+            Debug.Log("[WAVE-PREVIEW] Captured Batch 14 skiff, heavy, and map previews in " + buildDirectory);
             Application.Quit(0);
         }
 
@@ -128,7 +132,7 @@ namespace WavePrototype.Presentation
             float average = total / measuredFrames;
             float p99 = samples[Mathf.Clamp(Mathf.CeilToInt(measuredFrames * 0.99f) - 1, 0, measuredFrames - 1)];
             float maximum = samples[measuredFrames - 1];
-            Debug.Log($"[WAVE-FRAME] batch=13 frames={measuredFrames} avgMs={average:0.00} p99Ms={p99:0.00} maxMs={maximum:0.00} gen0={gen0Collections} heapDelta={heapAfter - heapBefore} movingRepeats={repeatedMovingFrames} maxBoatStep={maximumRenderedStep:0.000} finalSpeed={renderedPlayer.Velocity.magnitude:0.00} staticVerts={oceanRenderer.StaticVertexCount} dynamicVerts={oceanRenderer.DynamicVertexCount}");
+            Debug.Log($"[WAVE-FRAME] batch=14 frames={measuredFrames} avgMs={average:0.00} p99Ms={p99:0.00} maxMs={maximum:0.00} gen0={gen0Collections} heapDelta={heapAfter - heapBefore} movingRepeats={repeatedMovingFrames} maxBoatStep={maximumRenderedStep:0.000} finalSpeed={renderedPlayer.Velocity.magnitude:0.00} staticVerts={oceanRenderer.StaticVertexCount} dynamicVerts={oceanRenderer.DynamicVertexCount}");
             Application.Quit(0);
         }
 
@@ -220,7 +224,7 @@ namespace WavePrototype.Presentation
             for (int i = 0; i < simulation.Events.Count; i++)
             {
                 SimulationEvent e = simulation.Events[i];
-                if (e.BoatId != 1) continue;
+                if (e.BoatId != simulation.PlayerBoatId) continue;
                 if (e.Type == SimulationEventType.TargetVisited)
                 {
                     PushLog($"TARGET VISITED  #{Mathf.RoundToInt(e.Magnitude)}");
@@ -279,11 +283,22 @@ namespace WavePrototype.Presentation
             PushLog("Local seven-packet breaker burst spawned");
         }
 
-        internal void SpawnBoat(Vector2 position)
+        internal void SpawnBoat(Vector2 position, VesselProfileId profileId)
         {
-            simulation.AddBoat(position, 0f);
+            simulation.AddBoat(position, 0f, profileId);
             RefreshSnapshotsAfterExternalMutation();
-            PushLog("Passive test boat spawned");
+            PushLog(VesselProfiles.GetLabel(profileId) + " test boat spawned");
+        }
+
+        internal void TogglePlayerVesselProfile()
+        {
+            BoatData player = simulation.Boats[0];
+            VesselProfileId next = player.Profile == VesselProfileId.ArcadeSkiff
+                ? VesselProfileId.HeavyCutter : VesselProfileId.ArcadeSkiff;
+            if (!simulation.SetBoatProfile(player.Id, next)) return;
+            RefreshSnapshotsAfterExternalMutation();
+            cameraController.Reset(simulation.Boats[0].Position);
+            PushLog("DEBUG HULL: " + VesselProfiles.GetLabel(next));
         }
 
         internal void SpawnFloatingObject(FloatingObjectKind kind, Vector2 position)
@@ -403,6 +418,9 @@ namespace WavePrototype.Presentation
         {
             InitStyles();
             BoatData player = simulation.Boats[0];
+            VesselProfileDefinition vessel = simulation.Config.GetVesselProfile(player.Profile);
+            float vesselCruiseSpeed = simulation.Config.BoatCruiseSpeed * vessel.CruiseSpeedScale;
+            float vesselSurfSpeed = simulation.Config.BoatSurfSpeedCap * vessel.SurfSpeedScale;
             float depth = simulation.Environment.SampleDepth(player.Position);
             Vector2 waveForce = simulation.SampleAmbientWaveField(player.Position);
             float windEfficiency = simulation.GetWindEfficiency(player.Heading);
@@ -424,13 +442,14 @@ namespace WavePrototype.Presentation
                 }
             }
 
-            GUILayout.BeginArea(new Rect(16, 16, 380, debugOverlay ? 860 : 710), boxStyle);
-            GUILayout.Label("TACTICAL SAILING // BATCH 13", titleStyle);
-            GUILayout.Label("Phase-locked swell and partial breaking laboratory", smallStyle);
+            GUILayout.BeginArea(new Rect(16, 16, 380, debugOverlay ? 900 : 760), boxStyle);
+            GUILayout.Label("TACTICAL SAILING // BATCH 14", titleStyle);
+            GUILayout.Label("Vessel profiles and broad-hull wave laboratory", smallStyle);
             GUILayout.Space(9);
             GUILayout.Label(paused ? "PAUSED" : "UNDERWAY", valueStyle);
-            GUILayout.Label($"Speed        {player.Velocity.magnitude,5:0.0} / {simulation.Config.BoatSurfSpeedCap:0.0}", labelStyle);
-            GUILayout.Label($"Cruise cap   {simulation.Config.BoatCruiseSpeed,5:0.0}", smallStyle);
+            GUILayout.Label($"Vessel       {VesselProfiles.GetLabel(player.Profile)}", valueStyle);
+            GUILayout.Label($"Speed        {player.Velocity.magnitude,5:0.0} / {vesselSurfSpeed:0.0}", labelStyle);
+            GUILayout.Label($"Cruise cap   {vesselCruiseSpeed,5:0.0}   mass {player.Mass:0.0}", smallStyle);
             GUILayout.Label($"Hull         {player.Health,5:0.0}%", labelStyle);
             GUILayout.Label($"Depth        {depth,5:0.0} m", labelStyle);
             GUILayout.Label($"Wind drive   {windEfficiency * 100f,5:0}%", labelStyle);
@@ -449,7 +468,13 @@ namespace WavePrototype.Presentation
             if (GUILayout.Button("Local Burst", buttonStyle)) SpawnLocalBreakerBurst(player.Position - Vector2.right * 7f);
             GUILayout.EndHorizontal();
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Test Boat", buttonStyle)) SpawnBoat(player.Position + Vector2.up * 5f);
+            if (GUILayout.Button("Skiff", buttonStyle)) SpawnBoat(
+                player.Position + Vector2.up * 5f, VesselProfileId.ArcadeSkiff);
+            if (GUILayout.Button("Heavy", buttonStyle)) SpawnBoat(
+                player.Position + Vector2.down * 6f, VesselProfileId.HeavyCutter);
+            if (GUILayout.Button("Switch Hull", buttonStyle)) TogglePlayerVesselProfile();
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
             if (GUILayout.Button("Cargo", buttonStyle)) SpawnFloatingObject(
                 FloatingObjectKind.Cargo, player.Position + Vector2.up * 7f);
             if (GUILayout.Button("Wreckage", buttonStyle)) SpawnFloatingObject(
@@ -514,7 +539,7 @@ namespace WavePrototype.Presentation
             if (showHelp)
             {
                 const float width = 280f;
-                GUILayout.BeginArea(new Rect(Screen.width - width - 16, 16, width, 432), boxStyle);
+                GUILayout.BeginArea(new Rect(Screen.width - width - 16, 16, width, 458), boxStyle);
                 GUILayout.Label("CONTROLS", titleStyle);
                 GUILayout.Label("W / ↑      Forward", labelStyle);
                 GUILayout.Label("S / ↓       Brake / reverse", labelStyle);
@@ -524,7 +549,9 @@ namespace WavePrototype.Presentation
                 GUILayout.Label("Wheel      Follow-camera zoom", labelStyle);
                 GUILayout.Label("Q             Full swell front at cursor", labelStyle);
                 GUILayout.Label("Shift + Q     Local breaker burst (debug)", labelStyle);
-                GUILayout.Label("B             Passive boat at cursor", labelStyle);
+                GUILayout.Label("B             Skiff at cursor", labelStyle);
+                GUILayout.Label("Shift + B     Heavy cutter at cursor", labelStyle);
+                GUILayout.Label("Y             Switch player hull (debug)", labelStyle);
                 GUILayout.Label("C / X        Cargo / wreckage at cursor", labelStyle);
                 GUILayout.Label("T             Relocate target", labelStyle);
                 GUILayout.Label("V             Toggle target", labelStyle);

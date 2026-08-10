@@ -1,7 +1,7 @@
 # Codex Working Context
 
 This is a compact working reference, not the human developer manual. Current baseline:
-Batch 13 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
+Batch 14 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
 
 ## Non-negotiable rules
 
@@ -24,32 +24,37 @@ Batch 13 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
 - 20 sections/front, target spacing 13.5, environment sample every 4 ticks.
 - One western source/system; two dormant cross-sea definitions.
 - Partial breaking transfers coherent loss to non-force foam and can resume traveling.
-- Three same-profile boats, optional target, 24 initial cargo/wreckage objects.
+- Three initial arcade-skiff boats, optional target, 24 initial cargo/wreckage objects.
+- Immutable arcade-skiff and heavy-cutter profiles. The skiff preserves Batch 13 values.
+- Heavy cutter: mass 24, 6.2 x 2.8 hull, 1.5 collision radius, five hull samples.
+- Wave and land checks use hull samples but still contribute once per crest/boat identity.
 
 ## Known hazards
 
-- `SampleWaveDensity` counts parent centers, not visible/nearby sections.
+- `SampleWaveDensity` counts a parent front when an active crest section intersects the view.
 - `TargetWaveCount <= 0` also disables source maintenance and initial floating objects.
 - Runtime config is immutable; use a new `SimulationConfig` builder and reconstruct the
   simulation to change startup tuning.
 - Recorded boat controls retain the latest 65,536 commands by default; configure nonpositive
   capacity for unlimited diagnostic replay or disable recording when it is unnecessary.
-- 1,000 fronts run at only 30.8 ticks/s on reference PC; 10k runs at 2.2 ticks/s.
-- Boats are point-scale for waves and circular for rocks; larger vessels need hull sampling.
+- 1,000 fronts have measured 30.8-51.6 ticks/s on the reference PC; 10k measures only
+  2.2-3.9 ticks/s. Spatial scheduling remains required before major scale growth.
+- Land and waves use representative hull samples; rocks still use swept profile circles rather
+  than oriented hull polygons.
 - Same-build/platform determinism only; replay contains boat controls, not debug operations.
 
 ## Commands
 
 Validation execute method: `WavePrototype.Editor.BatchBuild.Validate`.
-Current build execute method: `WavePrototype.Editor.BatchBuild.BuildBatch13`.
+Current build execute method: `WavePrototype.Editor.BatchBuild.BuildBatch14`.
 Player modes: `-smoketest`, `-frametest`, `-capturepreview`.
 
 ## Roadmap
 
-1. Batch 14: correct density metric; vessel profiles and broad-hull sampling.
-2. Batch 15: gradual exploration-scale map and phase count derived from span/period.
-3. Batch 16: deterministic spatial/multi-rate scheduling if scale requires it.
-4. Batch 17: bounded ordered storm/cross-sea event.
+1. Batch 15: deterministic spatial broadphase for wave sections and boat/rock candidates.
+2. Batch 16: gradual exploration-scale map and phase count derived from span/period.
+3. Batch 17: bounded ordered storm/cross-sea event.
+4. Later vessel pass: more profiles only after the two-hull playtest establishes useful scale.
 5. Product gate: deeper environmental sandbox or minimal cargo/damage/landmark game.
 
 The human developer manual was intentionally removed from the workspace after archival in

@@ -34,6 +34,7 @@ namespace WavePrototype.Simulation
                 for (int boatIndex = 0; boatIndex < boats.Count; boatIndex++)
                 {
                     BoatData boat = boats[boatIndex];
+                    VesselProfileDefinition profile = config.GetVesselProfile(boat.Profile);
                     int bestSegment = -1;
                     float bestNormalizedDistance = 1f;
                     for (int segmentIndex = 0; segmentIndex < segments.Length; segmentIndex++)
@@ -44,21 +45,28 @@ namespace WavePrototype.Simulation
                         Vector2 crestAxis = new Vector2(-direction.y, direction.x);
                         Vector2 segmentPosition = Vector2.Lerp(segments[segmentIndex].Position,
                             segmentDecision.Position, 0.5f);
-                        Vector2 offset = boat.Position - segmentPosition;
                         bool breaking = segmentDecision.State == WaveState.Breaking;
                         float alongRadius = breaking
                             ? wave.PacketLength * 0.62f + config.BoatInteractionRadius
                             : wave.PacketLength * config.TravelingLongitudinalScale +
                               config.TravelingLongitudinalPadding;
                         float acrossRadius = segmentSpan * 0.62f + config.BoatInteractionRadius;
-                        float along = Vector2.Dot(offset, direction) / alongRadius;
-                        float across = Vector2.Dot(offset, crestAxis) / acrossRadius;
-                        float normalizedSquared = along * along + across * across;
-                        if (normalizedSquared >= bestNormalizedDistance * bestNormalizedDistance) continue;
-                        float normalizedDistance = Mathf.Sqrt(normalizedSquared);
-                        if (normalizedDistance >= 1f) continue;
-                        bestNormalizedDistance = normalizedDistance;
-                        bestSegment = segmentIndex;
+                        int sampleCount = Mathf.Max(1, profile.HullSampleCount);
+                        for (int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
+                        {
+                            Vector2 samplePosition = VesselProfiles.GetHullSampleWorldPosition(
+                                boat, profile, sampleIndex);
+                            Vector2 offset = samplePosition - segmentPosition;
+                            float along = Vector2.Dot(offset, direction) / alongRadius;
+                            float across = Vector2.Dot(offset, crestAxis) / acrossRadius;
+                            float normalizedSquared = along * along + across * across;
+                            if (normalizedSquared >= bestNormalizedDistance *
+                                bestNormalizedDistance) continue;
+                            float normalizedDistance = Mathf.Sqrt(normalizedSquared);
+                            if (normalizedDistance >= 1f) continue;
+                            bestNormalizedDistance = normalizedDistance;
+                            bestSegment = segmentIndex;
+                        }
                     }
 
                     if (bestSegment < 0) continue;
@@ -83,17 +91,22 @@ namespace WavePrototype.Simulation
                             carrySpeed);
                         impact *= relativePassage;
                     }
-                    decision.Force += best.Direction * impact * config.WaveBoatForceScale;
-                    decision.Force += forward * impact * following * config.WaveFollowingThrustScale;
-                    decision.Force -= boat.Velocity * impact * headOn * config.WaveHeadOnDampingScale;
+                    decision.Force += best.Direction * impact * config.WaveBoatForceScale *
+                        profile.WaveForceScale;
+                    decision.Force += forward * impact * following *
+                        config.WaveFollowingThrustScale * profile.WaveForceScale;
+                    decision.Force -= boat.Velocity * impact * headOn *
+                        config.WaveHeadOnDampingScale * profile.WaveForceScale;
                     float yawMultiplier = best.State == WaveState.Traveling
                         ? config.TravelingYawMultiplier : 1f;
                     decision.HeadingImpulse += SimulationMath.Cross(forward, best.Direction)
-                        * impact * proximity * config.WaveYawScale * yawMultiplier;
+                        * impact * proximity * config.WaveYawScale * yawMultiplier *
+                        profile.WaveYawScale;
                     if (best.State == WaveState.Breaking)
                         decision.Damage += Mathf.Max(0f, best.InteractionForce -
                             config.BreakingBoatDamageThreshold) * proximity * dt *
-                            config.BreakingBoatDamageScale * breakingScale;
+                            config.BreakingBoatDamageScale * breakingScale *
+                            profile.DamageTakenScale;
                     boatDecisions[boatIndex] = decision;
                     pendingEvents.Add(new SimulationEvent(SimulationEventType.WaveHitBoat,
                         wave.Id, boat.Id, boat.Position, impact, bestSegment));

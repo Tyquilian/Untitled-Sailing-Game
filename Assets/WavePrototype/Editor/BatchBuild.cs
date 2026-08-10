@@ -84,7 +84,19 @@ namespace WavePrototype.Editor
             var first = new WaveSimulation(seed);
             var second = new WaveSimulation(seed);
             Require(first.Waves.Count == first.Config.TargetWaveCount, "Initial wave population must match its configured target.");
-            Require(first.Boats.Count == 3, "Batch 13 must initialize with one player and two passive boats.");
+            Require(first.Boats.Count == 3, "Batch 14 must initialize with one player and two passive boats.");
+            VesselProfileDefinition initialSkiff = first.Config.GetVesselProfile(
+                VesselProfileId.ArcadeSkiff);
+            VesselProfileDefinition initialHeavy = first.Config.GetVesselProfile(
+                VesselProfileId.HeavyCutter);
+            for (int boatIndex = 0; boatIndex < first.Boats.Count; boatIndex++)
+                Require(first.Boats[boatIndex].Profile == VesselProfileId.ArcadeSkiff &&
+                        Mathf.Abs(first.Boats[boatIndex].Mass - initialSkiff.Mass) < 0.001f,
+                    $"Initial boat {first.Boats[boatIndex].Id} did not preserve the arcade-skiff baseline.");
+            Require(initialSkiff.HullSampleCount == 1 && initialHeavy.HullSampleCount == 5 &&
+                    initialHeavy.Mass > initialSkiff.Mass * 3f &&
+                    initialHeavy.HullLength > initialSkiff.HullLength * 2f,
+                "Vessel definitions do not provide the intended point-skiff / broad-heavy contrast.");
             Require(first.Config.WorldHalfExtents == new Vector2(225f, 125f), "Batch 13 world must remain 450 x 250 units.");
             Require(first.Config.TargetWaveCount == 20, "Batch 13 playable profile must begin with exactly 20 long-period fronts.");
             Require(first.Config.DesiredVisibleWaveCount == 7, "Batch 13 must halve the local full-width-front density reference.");
@@ -277,6 +289,29 @@ namespace WavePrototype.Editor
             Require(breakingImpact.HeadingChange > travelingImpact.HeadingChange + 8f,
                 $"Breaking yaw {breakingImpact.HeadingChange:0.0} is not distinct from traveling {travelingImpact.HeadingChange:0.0}.");
 
+            VesselProfileProbe vesselProfiles = RunVesselProfileProbe();
+            Require(vesselProfiles.Deterministic,
+                "Heavy-vessel profile behavior diverged between identical simulations.");
+            Require(vesselProfiles.HeavyMass > vesselProfiles.SkiffMass * 3f,
+                $"Heavy/skiff mass contrast is too small: {vesselProfiles.HeavyMass:0.0}/{vesselProfiles.SkiffMass:0.0}.");
+            Require(vesselProfiles.HeavySpeed < vesselProfiles.SkiffSpeed * 0.9f &&
+                    vesselProfiles.HeavySpeed > vesselProfiles.SkiffSpeed * 0.35f,
+                $"Heavy propulsion response is not distinct but usable: skiff/heavy={vesselProfiles.SkiffSpeed:0.00}/{vesselProfiles.HeavySpeed:0.00}.");
+            Require(vesselProfiles.HeavyTurn < vesselProfiles.SkiffTurn * 0.75f,
+                $"Heavy turn response is insufficiently distinct: skiff/heavy={vesselProfiles.SkiffTurn:0.0}/{vesselProfiles.HeavyTurn:0.0} degrees.");
+            Require(vesselProfiles.SkiffBroadHits == 0 && vesselProfiles.HeavyBroadHits == 1,
+                $"Broad-hull reach probe produced skiff/heavy hits {vesselProfiles.SkiffBroadHits}/{vesselProfiles.HeavyBroadHits}.");
+            Require(vesselProfiles.HeavyCenterHits == 1,
+                $"Five heavy-hull samples produced {vesselProfiles.HeavyCenterHits} impulses from one crest.");
+            Require(vesselProfiles.SkiffGroundings == 0 && vesselProfiles.HeavyGroundings == 1,
+                $"Broad-hull grounding probe produced skiff/heavy contacts {vesselProfiles.SkiffGroundings}/{vesselProfiles.HeavyGroundings}.");
+            Require(vesselProfiles.SkiffBreakingDamage > 0f &&
+                    vesselProfiles.HeavyBreakingDamage < vesselProfiles.SkiffBreakingDamage * 0.8f,
+                $"Heavy breaker resistance is not distinct: skiff/heavy damage={vesselProfiles.SkiffBreakingDamage:0.000}/{vesselProfiles.HeavyBreakingDamage:0.000}.");
+            Require(vesselProfiles.HeavyBreakingDisplacement <
+                    vesselProfiles.SkiffBreakingDisplacement * 0.9f,
+                $"Heavy breaker inertia is not distinct: skiff/heavy displacement={vesselProfiles.SkiffBreakingDisplacement:0.00}/{vesselProfiles.HeavyBreakingDisplacement:0.00}.");
+
             SegmentOcclusionProbe occlusion = RunSegmentOcclusionProbe();
             Require(occlusion.InitialSegments >= 5,
                 $"Island probe created only {occlusion.InitialSegments} crest segments.");
@@ -391,6 +426,14 @@ namespace WavePrototype.Editor
                 "Density diagnostics did not match authoritative wave state.");
             Require(density.LocalCount >= 0 && density.LocalCount <= density.WorldCount,
                 $"Local density is invalid: {density.LocalCount}/{density.WorldCount}.");
+            var densityProbe = new WaveSimulation(1482,
+                new SimulationConfig { TargetWaveCount = 0, InitialFloatingObjectCount = 0 },
+                new SegmentProbeEnvironmentFactory(false));
+            densityProbe.SpawnWaveForValidation(new Vector2(0f, 30f), Vector2.right,
+                0.7f, 3f, 60f);
+            WaveDensitySample segmentDensity = densityProbe.SampleWaveDensity(Vector2.zero, 4f);
+            Require(segmentDensity.LocalCount == 1,
+                "Visible-front density ignored an on-screen crest because its parent center was off-screen.");
             Require(first.ActiveWaveSegmentCount >= Mathf.CeilToInt(first.TotalWaveSegmentCount * 0.7f),
                 $"Long-run crest population hollowed into scraps: {first.ActiveWaveSegmentCount}/{first.TotalWaveSegmentCount} segments remain active.");
 
@@ -427,6 +470,7 @@ namespace WavePrototype.Editor
             Debug.Log($"[WAVE-VALIDATION] Crest coverage: width={crestCoverage.CrestLength:0}, inside={crestCoverage.InsideOffset:0.0}/{crestCoverage.InsideHits} hit, outside={crestCoverage.OutsideOffset:0.0}/{crestCoverage.OutsideHits} hits");
             Debug.Log($"[WAVE-VALIDATION] Passage: contacts={passage.ContactTicks}/{passage.MaximumConsecutiveContactTicks} total/consecutive, displacement={passage.BoatDisplacement:0.00}, peak={passage.PeakBoatSpeed:0.00}, lead={passage.WaveLead:0.00}");
             Debug.Log($"[WAVE-VALIDATION] State separation: traveling displacement/yaw={travelingImpact.Displacement:0.00}/{travelingImpact.HeadingChange:0.0}°, breaking={breakingImpact.Displacement:0.00}/{breakingImpact.HeadingChange:0.0}°");
+            Debug.Log($"[WAVE-VALIDATION] Vessels: mass={vesselProfiles.SkiffMass:0.0}/{vesselProfiles.HeavyMass:0.0}, speed={vesselProfiles.SkiffSpeed:0.00}/{vesselProfiles.HeavySpeed:0.00}, turn={vesselProfiles.SkiffTurn:0.0}/{vesselProfiles.HeavyTurn:0.0}°, broadHits={vesselProfiles.SkiffBroadHits}/{vesselProfiles.HeavyBroadHits}/{vesselProfiles.HeavyCenterHits}, grounding={vesselProfiles.SkiffGroundings}/{vesselProfiles.HeavyGroundings}, breakerDamage={vesselProfiles.SkiffBreakingDamage:0.000}/{vesselProfiles.HeavyBreakingDamage:0.000}, breakerMove={vesselProfiles.SkiffBreakingDisplacement:0.00}/{vesselProfiles.HeavyBreakingDisplacement:0.00}");
             Debug.Log($"[WAVE-VALIDATION] Segments: reference={first.ActiveWaveSegmentCount}/{first.TotalWaveSegmentCount}, island={occlusion.ActiveSegments}/{occlusion.InitialSegments} active center={occlusion.CenterActive} lag={occlusion.CenterLag:0.00}, shelfSpread={shelfDeformation.ForwardSpread:0.00} active={shelfDeformation.ActiveSegments}/{shelfDeformation.InitialSegments}");
             Debug.Log($"[WAVE-VALIDATION] Speed envelope: cruisePeak/final={cruise.PeakSpeed:0.00}/{cruise.FinalSpeed:0.00}, cruiseCap={first.Config.BoatCruiseSpeed:0.00}, surfPeak/cap={following.PeakAfterImpact:0.00}/{first.Config.BoatSurfSpeedCap:0.00}");
             Debug.Log($"[WAVE-VALIDATION] Swept rock: index={rockSweep.RockIndex}, impacts={rockSweep.ImpactEvents}, projection={rockSweep.PostImpactProjection:0.00}/{rockSweep.CombinedRadius:0.00}, escape={rockSweep.EscapeDistance:0.00}, escapeImpacts={rockSweep.EscapeImpactEvents}");

@@ -102,7 +102,8 @@ namespace WavePrototype.Simulation
                 for (int boatIndex = 0; boatIndex < boats.Count && decision.Active; boatIndex++)
                 {
                     BoatData boat = boats[boatIndex];
-                    float contactRadius = config.BoatCollisionRadius +
+                    VesselProfileDefinition profile = config.GetVesselProfile(boat.Profile);
+                    float contactRadius = profile.CollisionRadius +
                         (item.Kind == FloatingObjectKind.Cargo
                             ? config.CargoCollectionRadius : item.Radius);
                     Vector2 offset = boat.Position - item.Position;
@@ -125,7 +126,8 @@ namespace WavePrototype.Simulation
                     BoatDecision boatDecision = boatDecisions[boatIndex];
                     boatDecision.Force += normal * impulse;
                     boatDecision.HeadingImpulse += SimulationMath.Cross(
-                        SimulationMath.HeadingVector(boat.Heading), normal) * impulse * 0.7f;
+                        SimulationMath.HeadingVector(boat.Heading), normal) * impulse * 0.7f *
+                        profile.WaveYawScale;
                     boatDecisions[boatIndex] = boatDecision;
                     decision.Velocity -= normal * impulse * dt / Mathf.Max(0.5f, item.Radius * 3f);
                     if (closingSpeed > 0.2f)

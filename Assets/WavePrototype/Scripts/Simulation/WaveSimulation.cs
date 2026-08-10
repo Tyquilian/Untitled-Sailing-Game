@@ -146,20 +146,44 @@ namespace WavePrototype.Simulation
             => QueueBoatControl(new BoatControlCommand(Tick, PlayerBoatId, new BoatControl(throttle, steering)));
 
         public int AddBoat(Vector2 position, float heading)
+            => AddBoat(position, heading, VesselProfileId.ArcadeSkiff);
+
+        public int AddBoat(Vector2 position, float heading, VesselProfileId profileId)
         {
-            if (Environment.IsLand(position) || Environment.FindRock(position, Config.BoatCollisionRadius) >= 0)
-                position = boatMotionSystem.FindNearbyWater(position);
+            VesselProfileDefinition profile = runtimeConfig.GetVesselProfile(profileId);
+            if (boatMotionSystem.HullIntersectsLand(position, heading, profile) ||
+                Environment.FindRock(position, profile.CollisionRadius) >= 0)
+                position = boatMotionSystem.FindNearbyWater(position, heading, profile);
             int id = nextBoatId++;
             boats.Add(new BoatData
             {
                 Id = id,
+                Profile = profile.Id,
                 Position = position,
                 Velocity = Vector2.zero,
                 Heading = heading,
                 Health = 100f,
-                Mass = 7.2f
+                Mass = profile.Mass
             });
             return id;
+        }
+
+        public bool SetBoatProfile(int boatId, VesselProfileId profileId)
+        {
+            int index = FindBoatIndex(boatId);
+            if (index < 0) return false;
+            VesselProfileDefinition profile = runtimeConfig.GetVesselProfile(profileId);
+            BoatData boat = boats[index];
+            boat.Profile = profile.Id;
+            boat.Mass = profile.Mass;
+            if (boatMotionSystem.HullIntersectsLand(boat.Position, boat.Heading, profile) ||
+                Environment.FindRock(boat.Position, profile.CollisionRadius) >= 0)
+            {
+                boat.Position = boatMotionSystem.FindNearbyWater(boat.Position, boat.Heading, profile);
+                boat.Velocity = Vector2.zero;
+            }
+            boats[index] = boat;
+            return true;
         }
 
         public bool ConfigureBoatForValidation(int boatId, Vector2 position, Vector2 velocity, float heading)
@@ -329,10 +353,27 @@ namespace WavePrototype.Simulation
 
         public WaveDensitySample SampleWaveDensity(Vector2 position, float radius)
         {
-            float radiusSquared = radius * radius;
+            float segmentReach = Mathf.Max(0f, Config.WaveSegmentTargetSpacing * 0.55f);
+            float radiusSquared = (radius + segmentReach) * (radius + segmentReach);
             int localCount = 0;
             for (int i = 0; i < waves.Count; i++)
-                if ((waves[i].Position - position).sqrMagnitude <= radiusSquared) localCount++;
+            {
+                WaveSegmentData[] segments = waves[i].MutableSegments;
+                bool visible = false;
+                if (segments != null)
+                {
+                    for (int segment = 0; segment < segments.Length; segment++)
+                    {
+                        if (!segments[segment].Active ||
+                            (segments[segment].Position - position).sqrMagnitude > radiusSquared)
+                            continue;
+                        visible = true;
+                        break;
+                    }
+                }
+                else visible = (waves[i].Position - position).sqrMagnitude <= radiusSquared;
+                if (visible) localCount++;
+            }
             return new WaveDensitySample(waves.Count, localCount, radius, Config.DesiredVisibleWaveCount);
         }
 
@@ -470,6 +511,7 @@ namespace WavePrototype.Simulation
                 {
                     BoatData boat = boats[i];
                     Mix(ref hash, (uint)boat.Id);
+                    Mix(ref hash, (uint)boat.Profile);
                     MixVector(ref hash, boat.Position);
                     MixVector(ref hash, boat.Velocity);
                     MixFloat(ref hash, boat.Heading);
@@ -589,6 +631,8 @@ namespace WavePrototype.Simulation
             Mix(ref hash, Config.RecordBoatControlHistory ? 1u : 0u);
             Mix(ref hash, unchecked((uint)Config.MaximumRecordedBoatControls));
             Mix(ref hash, unchecked((uint)Config.PendingInputCompactionThreshold));
+            MixVesselProfile(ref hash, Config.ArcadeSkiffProfile);
+            MixVesselProfile(ref hash, Config.HeavyCutterProfile);
             MixFloat(ref hash, Config.WaveFollowingThrustScale);
             MixFloat(ref hash, Config.WaveHeadOnDampingScale);
             MixFloat(ref hash, Config.BreakingBoatDamageThreshold);
@@ -602,6 +646,25 @@ namespace WavePrototype.Simulation
             MixFloat(ref hash, Config.GroundingBounce);
             MixFloat(ref hash, Config.RockBaseDamage);
             MixFloat(ref hash, Config.RockSpeedDamageScale);
+        }
+
+        private static void MixVesselProfile(ref ulong hash, VesselProfileDefinition profile)
+        {
+            Mix(ref hash, (uint)profile.Id);
+            MixFloat(ref hash, profile.Mass);
+            MixFloat(ref hash, profile.HullLength);
+            MixFloat(ref hash, profile.HullBeam);
+            MixFloat(ref hash, profile.CollisionRadius);
+            Mix(ref hash, unchecked((uint)profile.HullSampleCount));
+            MixFloat(ref hash, profile.PropulsionScale);
+            MixFloat(ref hash, profile.TurnRateScale);
+            MixFloat(ref hash, profile.CruiseSpeedScale);
+            MixFloat(ref hash, profile.SurfSpeedScale);
+            MixFloat(ref hash, profile.LinearDragScale);
+            MixFloat(ref hash, profile.LateralDragScale);
+            MixFloat(ref hash, profile.WaveForceScale);
+            MixFloat(ref hash, profile.WaveYawScale);
+            MixFloat(ref hash, profile.DamageTakenScale);
         }
 
         private static void MixVector(ref ulong hash, Vector2 value)
