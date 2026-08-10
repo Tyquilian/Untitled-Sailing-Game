@@ -177,7 +177,10 @@ namespace WavePrototype.Simulation
             if (rockIndex >= 0)
             {
                 float previousEnergy = energy;
-                energy *= Mathf.Clamp01(1f - config.RockEnergyAbsorption * 0.32f);
+                // Rock contact can span several fixed ticks, especially for the larger
+                // hazards. Treat absorption as a per-second rate so radius and frame count
+                // do not turn one physical encounter into repeated near-total deletion.
+                energy *= Mathf.Exp(-config.RockEnergyAbsorption * dt);
                 foamEnergy += (previousEnergy - energy) * config.BreakingEnergyToFoam;
                 pendingEvents.Add(new SimulationEvent(SimulationEventType.WaveHitRock,
                     wave.Id, 0, nextPosition, previousEnergy - energy, segment.Index));
@@ -325,8 +328,8 @@ namespace WavePrototype.Simulation
             }
 
             decision.ActiveSegmentCount = active;
-            int minimumCoherentSegments = segments.Length <= 1 ? 1 :
-                Mathf.CeilToInt(segments.Length * config.WaveMinimumActiveSegmentFraction);
+            int minimumCoherentSegments = Mathf.Max(1,
+                Mathf.CeilToInt(segments.Length * config.WaveMinimumActiveSegmentFraction));
             decision.Expired = active < minimumCoherentSegments;
             if (active > 0)
             {

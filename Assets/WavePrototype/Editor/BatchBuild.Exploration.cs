@@ -8,8 +8,10 @@ namespace WavePrototype.Editor
         private readonly struct ExplorationScaleProbe
         {
             public readonly int ReferencePhases;
+            public readonly int PriorPhases;
             public readonly int ExpandedPhases;
             public readonly int ReferenceRocks;
+            public readonly int PriorRocks;
             public readonly int ExpandedRocks;
             public readonly float ReferenceSpacing;
             public readonly float ExpandedSpacing;
@@ -18,14 +20,17 @@ namespace WavePrototype.Editor
             public readonly int DisabledWaves;
             public readonly int DisabledObjects;
 
-            public ExplorationScaleProbe(int referencePhases, int expandedPhases,
-                int referenceRocks, int expandedRocks, float referenceSpacing,
-                float expandedSpacing, float crestScale, int explicitOverridePhases,
-                int disabledWaves, int disabledObjects)
+            public ExplorationScaleProbe(int referencePhases, int priorPhases,
+                int expandedPhases, int referenceRocks, int priorRocks,
+                int expandedRocks, float referenceSpacing, float expandedSpacing,
+                float crestScale, int explicitOverridePhases, int disabledWaves,
+                int disabledObjects)
             {
                 ReferencePhases = referencePhases;
+                PriorPhases = priorPhases;
                 ExpandedPhases = expandedPhases;
                 ReferenceRocks = referenceRocks;
+                PriorRocks = priorRocks;
                 ExpandedRocks = expandedRocks;
                 ReferenceSpacing = referenceSpacing;
                 ExpandedSpacing = expandedSpacing;
@@ -45,15 +50,21 @@ namespace WavePrototype.Editor
                 TargetWaveCount = -1,
                 InitialFloatingObjectCount = 0
             });
-            var expanded = new WaveSimulation(seed, new SimulationConfig
+            var prior = new WaveSimulation(seed, new SimulationConfig
             {
                 WorldHalfExtents = new Vector2(450f, 250f),
                 TargetWaveCount = -1,
                 InitialFloatingObjectCount = 0
             });
+            var expanded = new WaveSimulation(seed, new SimulationConfig
+            {
+                WorldHalfExtents = new Vector2(675f, 250f),
+                TargetWaveCount = -1,
+                InitialFloatingObjectCount = 0
+            });
             var explicitOverride = new WaveSimulation(seed, new SimulationConfig
             {
-                WorldHalfExtents = new Vector2(450f, 250f),
+                WorldHalfExtents = new Vector2(675f, 250f),
                 TargetWaveCount = 17,
                 InitialFloatingObjectCount = 0
             });
@@ -66,11 +77,12 @@ namespace WavePrototype.Editor
             SwellSystemData referenceSystem = reference.SwellSystems[0];
             SwellSystemData expandedSystem = expanded.SwellSystems[0];
             return new ExplorationScaleProbe(reference.InitialWaveTarget,
-                expanded.InitialWaveTarget, reference.Environment.Rocks.Count,
+                prior.InitialWaveTarget, expanded.InitialWaveTarget,
+                reference.Environment.Rocks.Count, prior.Environment.Rocks.Count,
                 expanded.Environment.Rocks.Count, referenceSystem.PacketSpacing,
                 expandedSystem.PacketSpacing, expandedSystem.MeanCrestLength /
-                referenceSystem.MeanCrestLength, explicitOverride.Waves.Count,
-                disabled.Waves.Count, disabled.FloatingObjects.Count);
+                    referenceSystem.MeanCrestLength, explicitOverride.Waves.Count,
+                    disabled.Waves.Count, disabled.FloatingObjects.Count);
         }
     }
 }

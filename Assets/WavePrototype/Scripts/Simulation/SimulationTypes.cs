@@ -312,11 +312,14 @@ namespace WavePrototype.Simulation
     public sealed class SimulationConfig
     {
         public float FixedDeltaTime = 1f / 30f;
-        public Vector2 WorldHalfExtents = new Vector2(450f, 250f);
+        public Vector2 WorldHalfExtents = new Vector2(675f, 250f);
         public float BaseWaveSpeed = 8.6f;
-        public float EnergyDecayPerSecond = 0.012f;
-        public float BreakingMinimumEnergyLossPerSecond = 0.14f;
-        public float BreakingEnergyLossPerSecond = 0.78f;
+        // Deep-water swell should cross an exploration-scale map without acquiring an
+        // accidental time-to-live. Terrain, breaking, rocks, and world exit remain the
+        // meaningful energy sinks.
+        public float EnergyDecayPerSecond = 0.0025f;
+        public float BreakingMinimumEnergyLossPerSecond = 0.035f;
+        public float BreakingEnergyLossPerSecond = 0.24f;
         public float BreakingIntensityAttackPerSecond = 4.2f;
         public float BreakingIntensityRecoveryPerSecond = 0.9f;
         public float BreakingReleaseIntensity = 0.08f;
@@ -349,7 +352,9 @@ namespace WavePrototype.Simulation
         public float WaveSegmentDirectionCoherence = 1.4f;
         public float WaveSegmentPositionCoherence = 1.15f;
         public float WaveSegmentLinkBreakMultiplier = 1.9f;
-        public float WaveMinimumActiveSegmentFraction = 0.45f;
+        // Zero retains a segmented front until its final surviving section dissipates or
+        // exits. Obstacles may open large shadows without deleting unobstructed sections.
+        public float WaveMinimumActiveSegmentFraction = 0f;
         public float WindSpeed = 7.5f;
         public Vector2 WindDirection = new Vector2(0.94f, 0.342f);
         public float SailingForce = 31f;

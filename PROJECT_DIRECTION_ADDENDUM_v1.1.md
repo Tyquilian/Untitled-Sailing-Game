@@ -13,10 +13,10 @@ The environment is the central gameplay system. Waves, bathymetry, islands, reef
 
 - The prototype may be a free-roaming arcade sailing sandbox rather than only a technical visualization.
 - Sailing must stay immediate and forgiving. Advanced sail trim and simulation-heavy sailing are not current goals.
-- Batch 16 expands the playable sea to 900×500 units, four times the Batch 15 area. Normal
+- Batch 17 extends the playable sea to 1350×500 units, six times the Batch 15 area. Normal
   gameplay reconstructs its initial ordered phases from source-to-exit travel span and the
-  resolved 2.3–2.7-second swell period rather than a fixed count. Seed 1847 resolves 39 fronts;
-  observed population remains an outcome of cadence, propagation, terrain loss, and coherent
+  resolved 2.3–2.7-second swell period rather than a fixed count. Seed 1847 resolves 59 fronts;
+  observed population remains an outcome of cadence, propagation, terrain loss, and segmented
   lifetime. Seven fronts in the local view remains a diagnostic reference, not enforcement.
   The 450×250/20-front and earlier short-crest targets remain historical comparisons.
 - A 1,000-wave scenario remains a required architecture and performance benchmark, not the preferred visual density. A future batch may replace fixed world and visible counts with an explicit target-density model that scales with map area and camera coverage.
@@ -50,6 +50,10 @@ The environment is the central gameplay system. Waves, bathymetry, islands, reef
 - A source's phase clock is authoritative. Initial front count reconstructs an already-running
   sea but does not permit population loss to spawn unscheduled replacements or suppress a
   scheduled phase.
+- Wave fronts have no forced age limit. Deep-water attenuation must remain low enough for a
+  normal source-strength front to cross the playable basin. Terrain may remove individual
+  sections without expiring the surviving parent front; the final section, world exit, and
+  energy/foam thresholds determine lifetime.
 - Breaking should dissipate a severity-dependent portion of coherent energy into non-coherent
   foam. A shelf-limited segment may stabilize and continue as residual traveling swell;
   land may still consume it completely. Foam is not an additional force-bearing wave.
@@ -70,8 +74,8 @@ The environment is the central gameplay system. Waves, bathymetry, islands, reef
 ## Current engineering priorities
 
 1. Preserve Batch 3's successful environmental feel with the span-derived long-period
-   reconstruction and phase-authoritative map-spanning swell in the 900×500 playable world.
-   Evaluate the resulting 37–42-front population and four-front local observation by
+   reconstruction and phase-authoritative map-spanning swell in the 1350×500 playable world.
+   Evaluate the resulting 59–64-front population and six-front local observation by
    playtesting rather than silently enforcing a count.
 2. Use broad continental and insular shelves to create land, shoaling water, and clustered navigation hazards while leaving deep water mechanically quiet.
 3. Keep the roaming target optional, deterministic, locally safe, and limited to a visit counter plus debug controls.
@@ -102,6 +106,11 @@ The environment is the central gameplay system. Waves, bathymetry, islands, reef
     their former section spacing, shelf-driven rocks increase to 640 while falling in overall
     area density, and floating objects increase to 48. Further expansion requires playtest
     evidence that distance, landmarks, targets, and environmental encounters remain useful.
+12. Batch 17 establishes a 1350×500 longitudinal baseline. Existing islands retain their
+    physical scale, a new western chain adds shoreline, the eastern continent follows the new
+    boundary, and shelf hazards increase to 784 with larger radii. Deep-water and segmented
+    lifetime corrections ensure boundary-born swell reaches the eastern shelf in long-session
+    validation before a storm or cross-sea is introduced.
 
 ## Architectural principles retained from v1.0
 

@@ -85,7 +85,7 @@ namespace WavePrototype.Editor
             var second = new WaveSimulation(seed);
             Require(first.Waves.Count == first.InitialWaveTarget,
                 "Initial wave population must match its resolved span/period target.");
-            Require(first.Boats.Count == 3, "Batch 16 must initialize with one player and two passive boats.");
+            Require(first.Boats.Count == 3, "Batch 17 must initialize with one player and two passive boats.");
             VesselProfileDefinition initialSkiff = first.Config.GetVesselProfile(
                 VesselProfileId.ArcadeSkiff);
             VesselProfileDefinition initialHeavy = first.Config.GetVesselProfile(
@@ -98,29 +98,49 @@ namespace WavePrototype.Editor
                     initialHeavy.Mass > initialSkiff.Mass * 3f &&
                     initialHeavy.HullLength > initialSkiff.HullLength * 2f,
                 "Vessel definitions do not provide the intended point-skiff / broad-heavy contrast.");
-            Require(first.Config.WorldHalfExtents == new Vector2(450f, 250f),
-                "Batch 16 playable world must be 900 x 500 units.");
+            Require(first.Config.WorldHalfExtents == new Vector2(675f, 250f),
+                "Batch 17 playable world must be 1350 x 500 units.");
             Require(first.Config.TargetWaveCount < 0 &&
-                    first.InitialWaveTarget >= 38 && first.InitialWaveTarget <= 44,
-                $"Batch 16 span/period reconstruction resolved {first.InitialWaveTarget} fronts.");
+                    first.InitialWaveTarget >= 58 && first.InitialWaveTarget <= 64,
+                $"Batch 17 span/period reconstruction resolved {first.InitialWaveTarget} fronts.");
             Require(first.Config.DesiredVisibleWaveCount == 7,
-                "Batch 16 must preserve the seven-front local density reference.");
-            Require(first.Environment.Rocks.Count >= 560,
+                "Batch 17 must preserve the seven-front local density reference.");
+            Require(Mathf.Abs(first.Config.EnergyDecayPerSecond - 0.0025f) < 0.00001f &&
+                    first.Config.WaveMinimumActiveSegmentFraction <= 0f,
+                "Batch 17 must use long-range deep-water retention and last-section lifetime.");
+            Require(first.Environment.Rocks.Count >= 650,
                 $"Expanded shelves produced only {first.Environment.Rocks.Count} rock hazards.");
             ExplorationScaleProbe exploration = RunExplorationScaleProbe();
-            Require(exploration.ExpandedPhases >= exploration.ReferencePhases * 2 &&
-                    exploration.ExpandedPhases <= exploration.ReferencePhases * 2 + 1,
-                $"Span-derived phases did not scale with travel distance: {exploration.ReferencePhases}->{exploration.ExpandedPhases}.");
+            Require(exploration.PriorPhases >= exploration.ReferencePhases * 2 &&
+                    exploration.PriorPhases <= exploration.ReferencePhases * 2 + 1 &&
+                    exploration.ExpandedPhases >= exploration.ReferencePhases * 3 &&
+                    exploration.ExpandedPhases <= exploration.ReferencePhases * 3 + 2,
+                $"Span-derived phases did not scale with travel distance: {exploration.ReferencePhases}->{exploration.PriorPhases}->{exploration.ExpandedPhases}.");
             Require(Mathf.Abs(exploration.ReferenceSpacing - exploration.ExpandedSpacing) < 0.001f,
                 $"Map expansion changed local swell spacing: {exploration.ReferenceSpacing:0.00}/{exploration.ExpandedSpacing:0.00}.");
             Require(exploration.CrestScale > 1.9f && exploration.CrestScale < 2.01f,
                 $"Full-width crest scale is invalid: {exploration.CrestScale:0.000}x.");
-            Require(exploration.ReferenceRocks == 320 && exploration.ExpandedRocks == 640,
-                $"Shelf hazard scaling produced {exploration.ReferenceRocks}/{exploration.ExpandedRocks} rocks.");
+            Require(exploration.ReferenceRocks == 320 &&
+                    exploration.PriorRocks > exploration.ReferenceRocks &&
+                    exploration.ExpandedRocks > exploration.PriorRocks,
+                $"Shelf hazard scaling produced {exploration.ReferenceRocks}/{exploration.PriorRocks}/{exploration.ExpandedRocks} rocks.");
             Require(exploration.ExplicitOverridePhases == 17,
                 $"Explicit phase-count override produced {exploration.ExplicitOverridePhases}/17 fronts.");
             Require(exploration.DisabledWaves == 0 && exploration.DisabledObjects == 0,
                 "Zero-count ocean did not disable initial waves and floating objects.");
+            OceanContinuityProbe continuity = RunOceanContinuityProbe();
+            Require(continuity.ShelfArrivalTick > 3000 &&
+                    continuity.MaximumTravelX >= first.Config.WorldHalfExtents.x - 155f &&
+                    continuity.ShelfArrivalDepth > 0.24f &&
+                    continuity.ShelfArrivalDepth < 2.5f &&
+                    continuity.ShelfArrivalEnergy > first.Config.MinimumEnergy,
+                $"Boundary-born swell failed to reach the eastern near shelf: tick={continuity.ShelfArrivalTick}, x={continuity.MaximumTravelX:0.0}, depth={continuity.ShelfArrivalDepth:0.00}, energy={continuity.ShelfArrivalEnergy:0.000}.");
+            Require(continuity.SurvivedBelowLegacyCutoff &&
+                    continuity.MinimumActiveSegments <
+                        Mathf.CeilToInt(continuity.InitialSegments * 0.45f),
+                $"A partially shadowed front did not survive below the legacy group cutoff: {continuity.MinimumActiveSegments}/{continuity.InitialSegments}.");
+            Require(continuity.ExpirationTick > continuity.ShelfArrivalTick,
+                $"Boundary-born swell expired before completing its terrain encounter: shelf={continuity.ShelfArrivalTick}, expired={continuity.ExpirationTick}.");
             Require(first.Target.Enabled, "The optional roaming target must begin enabled.");
             Require(first.Target.VisitCount == 0, "The roaming target visit counter must begin at zero.");
             Require(first.IsSafeTargetPosition(first.Target.Position), "Initial target position is not safe open water.");
@@ -247,21 +267,21 @@ namespace WavePrototype.Editor
 
             int landSamples = 0, shallowSamples = 0, deepSamples = 0;
             for (int y = -240; y <= 240; y += 10)
-            for (int x = -440; x <= 440; x += 10)
+            for (int x = -665; x <= 665; x += 10)
             {
                 float depth = first.Environment.SampleDepth(new Vector2(x, y));
                 if (depth <= 0.24f) landSamples++;
                 else if (depth < 2.4f) shallowSamples++;
                 else if (depth > 7f) deepSamples++;
             }
-            Require(landSamples > 220 && shallowSamples > 300 && deepSamples > 1500,
+            Require(landSamples > 260 && shallowSamples > 390 && deepSamples > 2600,
                 $"Continental and insular shelves are not legible in sampled bathymetry: land={landSamples}, shallow={shallowSamples}, deep={deepSamples}.");
-            Require(first.Environment.SampleDepth(new Vector2(420f, 0f)) <= 0.24f,
+            Require(first.Environment.SampleDepth(new Vector2(650f, 0f)) <= 0.24f,
                 "Eastern continental landmass is missing.");
-            float continentalShelfDepth = first.Environment.SampleDepth(new Vector2(300f, 0f));
+            float continentalShelfDepth = first.Environment.SampleDepth(new Vector2(525f, 0f));
             Require(continentalShelfDepth > 0.24f && continentalShelfDepth < 2.5f,
                 $"Continental shelf sample is not shallow navigable water: {continentalShelfDepth:0.00}.");
-            float outerContinentalShelfDepth = first.Environment.SampleDepth(new Vector2(150f, 0f));
+            float outerContinentalShelfDepth = first.Environment.SampleDepth(new Vector2(375f, 0f));
             Require(outerContinentalShelfDepth > 2.5f && outerContinentalShelfDepth < 7f,
                 $"Outer continental shelf/slope is not prominent: {outerContinentalShelfDepth:0.00}.");
             Require(first.Environment.SampleDepth(new Vector2(-205f, 85f)) <= 0.24f,
@@ -269,8 +289,32 @@ namespace WavePrototype.Editor
             float insularShelfDepth = first.Environment.SampleDepth(new Vector2(-142.5f, 85f));
             Require(insularShelfDepth > 0.24f && insularShelfDepth < 4f,
                 $"Insular shelf sample is not shallow navigable water: {insularShelfDepth:0.00}.");
-            Require(first.Environment.SampleDepth(new Vector2(-375f, -210f)) > 7f,
+            Require(first.Environment.SampleDepth(new Vector2(-565f, 45f)) <= 0.24f,
+                "New western island-chain landmass is missing.");
+            float westernShelfDepth = first.Environment.SampleDepth(new Vector2(-510f, 45f));
+            Require(westernShelfDepth > 0.24f && westernShelfDepth < 4f,
+                $"Western island shelf sample is not shallow navigable water: {westernShelfDepth:0.00}.");
+            Require(first.Environment.SampleDepth(new Vector2(-630f, -220f)) > 7f,
                 "Open basin sample should remain mechanically deep water.");
+
+            float minimumRockRadius = float.MaxValue;
+            float maximumRockRadius = 0f;
+            float totalRockRadius = 0f;
+            int westernChainRocks = 0;
+            for (int rockIndex = 0; rockIndex < first.Environment.Rocks.Count; rockIndex++)
+            {
+                RockData rock = first.Environment.Rocks[rockIndex];
+                minimumRockRadius = Mathf.Min(minimumRockRadius, rock.Radius);
+                maximumRockRadius = Mathf.Max(maximumRockRadius, rock.Radius);
+                totalRockRadius += rock.Radius;
+                if (rock.Position.x < -450f) westernChainRocks++;
+            }
+            float averageRockRadius = totalRockRadius / first.Environment.Rocks.Count;
+            Require(minimumRockRadius >= 0.79f && maximumRockRadius >= 2.5f &&
+                    averageRockRadius > 1.15f,
+                $"Rock scale is not substantial enough: min/avg/max={minimumRockRadius:0.00}/{averageRockRadius:0.00}/{maximumRockRadius:0.00}.");
+            Require(westernChainRocks >= 30,
+                $"Western extension received only {westernChainRocks} shelf-driven rocks.");
 
             float averageCrest = 0f;
             for (int i = 0; i < first.Waves.Count; i++) averageCrest += first.Waves[i].CrestLength;
@@ -478,7 +522,7 @@ namespace WavePrototype.Editor
 
             float nominalWidthCrossingSeconds = first.Config.WorldHalfExtents.x * 2f /
                                                 first.Config.BoatCruiseSpeed;
-            Require(nominalWidthCrossingSeconds >= 70f,
+            Require(nominalWidthCrossingSeconds >= 105f,
                 $"Expanded ocean still crosses nominally in only {nominalWidthCrossingSeconds:0.0}s.");
 
             PerformanceProbe playable = RunPerformanceProbe(20, BenchmarkTicks, 4041);
@@ -506,8 +550,9 @@ namespace WavePrototype.Editor
 
             Debug.Log($"[WAVE-VALIDATION] Determinism: 900/900 matching ticks; final hash {first.CalculateStateHash():X16}");
             Debug.Log($"[WAVE-VALIDATION] Behaviors: breaking={breakingObserved}, rockHits={rockHitsObserved}, waveBoatHits={waveBoatHitsObserved}, damageEvents={damageEventsObserved}");
-            Debug.Log($"[WAVE-VALIDATION] World: 900x500, rocks={first.Environment.Rocks.Count}, averageCrest={averageCrest:0.00}, terrainSamples={landSamples}/{shallowSamples}/{deepSamples}, shelfDepths={continentalShelfDepth:0.00}/{outerContinentalShelfDepth:0.00}/{insularShelfDepth:0.00}, nominalCrossing={nominalWidthCrossingSeconds:0.0}s");
-            Debug.Log($"[WAVE-VALIDATION] Exploration scale: phases={exploration.ReferencePhases}->{exploration.ExpandedPhases}, rocks={exploration.ReferenceRocks}->{exploration.ExpandedRocks}, spacing={exploration.ReferenceSpacing:0.00}/{exploration.ExpandedSpacing:0.00}, crestScale={exploration.CrestScale:0.000}x, explicit={exploration.ExplicitOverridePhases}, disabled={exploration.DisabledWaves}/{exploration.DisabledObjects}");
+            Debug.Log($"[WAVE-VALIDATION] World: 1350x500, rocks={first.Environment.Rocks.Count}, rockRadius={minimumRockRadius:0.00}/{averageRockRadius:0.00}/{maximumRockRadius:0.00}, westernRocks={westernChainRocks}, averageCrest={averageCrest:0.00}, terrainSamples={landSamples}/{shallowSamples}/{deepSamples}, shelfDepths={continentalShelfDepth:0.00}/{outerContinentalShelfDepth:0.00}/{insularShelfDepth:0.00}/{westernShelfDepth:0.00}, nominalCrossing={nominalWidthCrossingSeconds:0.0}s");
+            Debug.Log($"[WAVE-VALIDATION] Exploration scale: phases={exploration.ReferencePhases}->{exploration.PriorPhases}->{exploration.ExpandedPhases}, rocks={exploration.ReferenceRocks}->{exploration.PriorRocks}->{exploration.ExpandedRocks}, spacing={exploration.ReferenceSpacing:0.00}/{exploration.ExpandedSpacing:0.00}, crestScale={exploration.CrestScale:0.000}x, explicit={exploration.ExplicitOverridePhases}, disabled={exploration.DisabledWaves}/{exploration.DisabledObjects}");
+            Debug.Log($"[WAVE-VALIDATION] Ocean continuity: segments={continuity.MinimumActiveSegments}/{continuity.InitialSegments} minimum/initial, shelfTick={continuity.ShelfArrivalTick}, expireTick={continuity.ExpirationTick}, maxX={continuity.MaximumTravelX:0.0}, shelfDepth/energy={continuity.ShelfArrivalDepth:0.00}/{continuity.ShelfArrivalEnergy:0.000}, survivedLegacyCutoff={continuity.SurvivedBelowLegacyCutoff}");
             Debug.Log($"[WAVE-VALIDATION] Impact: sideDisplacement={side.LateralDisplacement:0.00}, sideYaw={side.HeadingChange:0.0}°, surf={following.SpeedBeforeImpact:0.00}->{following.PeakAfterImpact:0.00}, headOn={headOn.SpeedBeforeImpact:0.00}->{headOn.MinimumAfterImpact:0.00}");
             Debug.Log($"[WAVE-VALIDATION] Crest coverage: width={crestCoverage.CrestLength:0}, inside={crestCoverage.InsideOffset:0.0}/{crestCoverage.InsideHits} hit, outside={crestCoverage.OutsideOffset:0.0}/{crestCoverage.OutsideHits} hits");
             Debug.Log($"[WAVE-VALIDATION] Passage: contacts={passage.ContactTicks}/{passage.MaximumConsecutiveContactTicks} total/consecutive, displacement={passage.BoatDisplacement:0.00}, peak={passage.PeakBoatSpeed:0.00}, lead={passage.WaveLead:0.00}");

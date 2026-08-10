@@ -1,7 +1,7 @@
 # Codex Working Context
 
 This is a compact working reference, not the human developer manual. Current baseline:
-Batch 16 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
+Batch 17 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
 
 ## Non-negotiable rules
 
@@ -18,15 +18,21 @@ Batch 16 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
 
 ## Current baseline
 
-- World 900×500 (4× Batch 15 area); one normalized continent/island shelf map; 640 rocks.
+- World 1350×500 (6× Batch 15 area); fixed-scale central geography, a new western island
+  chain, and an eastern-boundary continent; 784 rocks.
 - Negative `TargetWaveCount` derives ordered startup phases from source travel span / packet
   spacing; zero disables the sea; positive values remain explicit test/stress overrides.
-- Seed 1847 derives 39 initial map-spanning fronts; observed 37–42 after one injected front.
+- Seed 1847 derives 59 initial map-spanning fronts; observed 59–64 after one injected front.
 - Period 2.3–2.7 s; seed 1847 selects 76 ticks ≈2.53 s.
 - Up to 40 sections/front, target spacing 13.5, environment sample every 4 ticks.
+- Deep-water decay is 0.0025/s. Fronts retain identity until the final active section; there
+  is no age timer or 45-percent group cutoff. Breaking loss is 0.035–0.24/s, and rock
+  absorption is timestep-correct.
 - One western source/system; two dormant cross-sea definitions.
 - Partial breaking transfers coherent loss to non-force foam and can resume traveling.
 - Three initial arcade-skiff boats, optional target, 48 initial cargo/wreckage objects.
+- Rock radii at seed 1847 are 0.80–2.86 (1.44 average). Follow-camera zoom spans 10.5–96;
+  `M` remains full-map view.
 - Immutable arcade-skiff and heavy-cutter profiles. The skiff preserves Batch 13 values.
 - Heavy cutter: mass 24, 6.2 x 2.8 hull, 1.5 collision radius, five hull samples.
 - Wave and land checks use hull samples but still contribute once per crest/boat identity.
@@ -53,9 +59,11 @@ Batch 16 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
   culling alone is not multi-rate simulation or world streaming.
 - Batch 15 same-process samples measured spatial/brute CPU time at 2.766/3.672s for
   320 fronts over 300 ticks and 3.297/4.531s for 1,000 fronts over 120 ticks.
-- Batch 16 reference: 72s nominal width crossing, local/world fronts 4/38 after 900 ticks,
-  1,000-front stress 59 ticks/s, 10k diagnostic 2.2–2.5 ticks/s for 30 ticks. Packaged
-  frame probe: 8.71ms average / 13.53ms p99 with 8,251 dynamic vertices.
+- Batch 17 reference: 108s nominal width crossing, local/world fronts 6/64 after 900 ticks,
+  1,000-front stress 55 ticks/s, 10k diagnostic 2.3 ticks/s for 30 ticks. Packaged frame
+  probe: 8.88ms average / 12.60ms p99 with 15,467 dynamic vertices.
+- The long-transit regression front reaches the near eastern shelf at tick 4,801 with 0.188
+  energy and expires after terrain contact at tick 5,138.
 - Land and waves use representative hull samples; rocks still use swept profile circles rather
   than oriented hull polygons.
 - Same-build/platform determinism only; replay contains boat controls, not debug operations.
@@ -63,12 +71,12 @@ Batch 16 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
 ## Commands
 
 Validation execute method: `WavePrototype.Editor.BatchBuild.Validate`.
-Current build execute method: `WavePrototype.Editor.BatchBuild.BuildBatch16`.
+Current build execute method: `WavePrototype.Editor.BatchBuild.BuildBatch17`.
 Player modes: `-smoketest`, `-frametest`, `-capturepreview`.
 
 ## Roadmap
 
-1. Batch 17: bounded ordered storm/cross-sea event, if the expanded normal ocean playtests well.
+1. Batch 18: bounded ordered storm/cross-sea event, if the Batch 17 carrier ocean playtests well.
 2. Later vessel pass: more profiles only after the two-hull playtest establishes useful scale.
 3. Product gate: deeper environmental sandbox or minimal cargo/damage/landmark game.
 

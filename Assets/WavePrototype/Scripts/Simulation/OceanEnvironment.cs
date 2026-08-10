@@ -92,17 +92,17 @@ namespace WavePrototype.Simulation
 
         private float EvaluateDepth(Vector2 position)
         {
-            // Authoring coordinates are normalized to the proven Batch 6 shelf layout.
-            // Enlarging the world therefore stretches coherent regions instead of exposing
-            // a noisy procedural fringe or changing their basic navigational character.
-            Vector2 point = new Vector2(
-                position.x * 180f / Mathf.Max(1f, halfExtents.x),
-                position.y * 100f / Mathf.Max(1f, halfExtents.y));
+            // Vertical scale is the stable bathymetry authoring scale. A longer world now
+            // exposes additional longitudinal authoring space instead of stretching every
+            // existing island and shelf along X.
+            float authoringScale = Mathf.Max(0.25f, halfExtents.y / 100f);
+            Vector2 point = position / authoringScale;
+            float authoredHalfWidth = halfExtents.x / authoringScale;
             float depth = 11.2f;
 
             // A large eastern continental margin. The irregularity is broad enough to read
             // as coastline rather than procedural noise; the shelf reaches far into the sea.
-            float coastX = 180f - 28f
+            float coastX = authoredHalfWidth - 28f
                 + Mathf.Sin(point.y * 0.032f) * 8f
                 + Mathf.Sin(point.y * 0.081f + 0.7f) * 3.5f;
             depth = Mathf.Min(depth, ContinentalShelfDepth(coastX - point.x));
@@ -120,6 +120,23 @@ namespace WavePrototype.Simulation
             depth = Mathf.Min(depth, IslandShelfDepth(point, new Vector2(94f, 66f), 7f, 5f, 11f));
             depth = Mathf.Min(depth, IslandShelfDepth(point, new Vector2(102f, -53f), 16f, 9f, 24f));
             depth = Mathf.Min(depth, IslandShelfDepth(point, new Vector2(-37f, 69f), 10f, 6.5f, 5f));
+
+            // The Batch 17 longitudinal extension receives a separate western island chain.
+            // These shelves only enter worlds wide enough to contain them; earlier reference
+            // profiles keep their established geography and remain useful comparisons.
+            if (authoredHalfWidth > 210f)
+            {
+                depth = Mathf.Min(depth, IslandShelfDepth(point,
+                    new Vector2(-226f, 18f), 18f, 11f, -14f));
+                depth = Mathf.Min(depth, IslandShelfDepth(point,
+                    new Vector2(-248f, 42f), 9f, 6f, 17f));
+                depth = Mathf.Min(depth, IslandShelfDepth(point,
+                    new Vector2(-204f, 41f), 8f, 5f, -22f));
+                depth = Mathf.Min(depth, IslandShelfDepth(point,
+                    new Vector2(-236f, -30f), 13f, 8f, 22f));
+                depth = Mathf.Min(depth, IslandShelfDepth(point,
+                    new Vector2(-215f, -42f), 7f, 4.8f, -10f));
+            }
 
             // Two submerged shelf ridges provide shoaling corridors without adding more land.
             depth = Mathf.Min(depth, 3.6f + (1f - Gaussian(point,
@@ -193,8 +210,9 @@ namespace WavePrototype.Simulation
             var centers = new List<Vector2>(48);
             float areaScale = Mathf.Max(0.05f,
                 halfExtents.x * halfExtents.y / (225f * 125f));
-            float mapScale = 1.25f * Mathf.Sqrt(areaScale);
-            float inverseLinearScale = 1f / Mathf.Sqrt(areaScale);
+            float authoringScale = Mathf.Max(0.25f, halfExtents.y / 100f);
+            float mapScale = authoringScale;
+            float inverseLinearScale = 1.25f / authoringScale;
             int targetRockCount = Mathf.Max(24,
                 Mathf.RoundToInt(320f * Mathf.Sqrt(areaScale)));
 
@@ -222,7 +240,9 @@ namespace WavePrototype.Simulation
                     Vector2 candidate = centers[centerIndex] + random.InsideUnitCircle() * spread;
                     float depth = SampleDepth(candidate);
                     if (depth <= 0.25f || depth > 3.6f) continue;
-                    float radius = random.Range(0.5f, 1.62f) * Mathf.Lerp(1.22f, 0.78f, depth / 3.6f);
+                    float radius = random.Range(0.95f, 2.45f) *
+                        Mathf.Lerp(1.08f, 0.9f, depth / 3.6f);
+                    if (random.Value() < 0.12f) radius *= 1.18f;
                     AddRockIfSeparated(candidate, radius);
                 }
             }
@@ -239,7 +259,7 @@ namespace WavePrototype.Simulation
                     float slope = SampleDepthGradient(candidate).magnitude;
                     if (depth > 0.28f && depth < 3.5f &&
                         slope > 0.026f * inverseLinearScale && random.Value() < 0.34f)
-                        AddRockIfSeparated(candidate, random.Range(0.4f, 1.08f));
+                        AddRockIfSeparated(candidate, random.Range(0.8f, 1.75f));
                 }
             }
         }

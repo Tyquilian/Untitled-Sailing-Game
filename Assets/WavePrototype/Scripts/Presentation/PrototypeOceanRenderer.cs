@@ -276,9 +276,9 @@ namespace WavePrototype.Presentation
 
         private void AddBathymetry()
         {
-            const int cellsX = 225;
-            const int cellsY = 125;
             Vector2 half = simulation.Config.WorldHalfExtents;
+            int cellsX = Mathf.CeilToInt(half.x * 0.5f);
+            int cellsY = Mathf.CeilToInt(half.y * 0.5f);
             float width = half.x * 2f / cellsX;
             float height = half.y * 2f / cellsY;
             for (int y = 0; y < cellsY; y++)

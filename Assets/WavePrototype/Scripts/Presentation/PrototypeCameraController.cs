@@ -9,6 +9,9 @@ namespace WavePrototype.Presentation
     /// </summary>
     internal sealed class PrototypeCameraController
     {
+        private const float MinimumFollowZoom = 10.5f;
+        private const float MaximumFollowZoom = 96f;
+        private const float ScrollZoomRate = 0.12f;
         private readonly SimulationConfigSnapshot config;
         private float followZoom = 18f;
         private Vector3 cameraVelocity;
@@ -37,7 +40,8 @@ namespace WavePrototype.Presentation
         public void ApplyScroll(float scroll)
         {
             if (MapView || Mathf.Abs(scroll) <= 0.01f) return;
-            followZoom = Mathf.Clamp(followZoom * (1f - scroll * 0.08f), 10.5f, 27f);
+            followZoom = Mathf.Clamp(followZoom * (1f - scroll * ScrollZoomRate),
+                MinimumFollowZoom, MaximumFollowZoom);
         }
 
         public void ToggleMapView() => MapView = !MapView;

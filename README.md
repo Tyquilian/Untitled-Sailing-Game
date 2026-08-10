@@ -1,13 +1,13 @@
-# Tactical Sailing — Exploration-Scale Ocean (Batch 16)
+# Tactical Sailing — Ocean Continuity and Longer Coast (Batch 17)
 
-Batch 16 doubles both world dimensions, producing a 900×500 ocean with four times the former
-area. Initial swell phases are derived from travel span and the resolved period, shelves are
-physically broader, and absolute hazard/object counts grow without preserving cramped-map
-density. Sailing and impact tuning remain unchanged.
+Batch 17 extends the established ocean to 1350×500 units, adds a western island chain, makes
+rocks substantially larger, and allows follow-camera zoom out to 96. Boundary-born swell now
+survives the long deep-water crossing and partially obstructed fronts retain their open-water
+sections instead of disappearing as a group.
 
 ## Run the latest build
 
-Open `Builds/Batch16/TacticalSailingBatch16.exe` and keep the complete `Batch16` directory
+Open `Builds/Batch17/TacticalSailingBatch17.exe` and keep the complete `Batch17` directory
 together. Earlier batch builds remain preserved.
 
 The source project targets Unity `6000.3.2f1`. Open
@@ -39,40 +39,42 @@ The source project targets Unity `6000.3.2f1`. Open
 The `Y` switch and the vessel-spawn controls are comparison tools, not proposed gameplay
 actions. With `F3` enabled, orange points show each vessel's authoritative hull samples.
 
-## Batch 16 changes
+## Batch 17 changes
 
-- Expands the playable ocean from 450×250 to 900×500 units and doubles nominal crossing time.
-- Derives the normal initial phase count from source-to-exit span divided by packet spacing.
-- Preserves zero as the disabled-ocean setting and positive counts as explicit test overrides.
-- Raises the crest-section ceiling from 20 to 40 to preserve physical sampling resolution.
-- Stretches the established continental/insular shelves into more recognizable regions.
-- Scales shelf-driven rocks from 320 to 640 and floating cargo/wreckage from 24 to 48.
-- Scales initial boat positions with the map and exposes the derived initial count in the HUD.
+- Extends the ocean from 900×500 to 1350×500 units while preserving its vertical scale.
+- Adds a deterministic five-island western chain and moves the continent with the east edge.
+- Reconstructs 59 ordered phases at the unchanged local period and spacing.
+- Reduces accidental deep-water lifetime loss and retains a front until its final section dies.
+- Makes breaking and rock absorption partial, timestep-correct energy losses.
+- Raises rock radii to `0.80–2.86` units at the reference seed and scales hazards to 784.
+- Expands follow-camera scroll from 27 to 96 while retaining full-map view on `M`.
+- Keeps bathymetry presentation near four-unit cells as the world length increases.
 
 ## Validation summary
 
 Reference editor validation passed on 2026-08-10:
 
 - deterministic reference run: 900/900 matching ticks;
-- derived reference/expanded phases: `19 / 39` at identical `22.71`-unit spacing;
-- normal 30-second population range: `37–42`, ending at 38;
-- local/world/reference fronts: `4 / 38 / 7`;
-- shelf hazards: `320 → 640`;
-- average expanded crest: `519.17` units with 40-section capacity;
-- nominal width crossing: `72.0` seconds;
-- deterministic final hash: `A8991F06A66C842A`;
-- 1,000-front stress rate: approximately `59` ticks/second;
-- 10,000-front diagnostic: approximately `2.2–2.5` ticks/second for 30 ticks;
-- packaged frame probe: `8.71ms` average / `13.53ms` p99; and
+- derived reference/prior/current phases: `19 / 39 / 59` at identical `22.71`-unit spacing;
+- normal 30-second population range: `59–64`, ending at 64;
+- local/world/reference fronts: `6 / 64 / 7`;
+- shelf hazards: `320 → 640 → 784`;
+- average expanded crest: `520.15` units with 40-section capacity;
+- nominal width crossing: `108.0` seconds;
+- boundary-to-shelf continuity: tick `4,801`, energy `0.188`, expiration tick `5,138`;
+- deterministic final hash: `C0797F93B819AC6F`;
+- 1,000-front stress rate: approximately `55` ticks/second;
+- 10,000-front diagnostic: approximately `2.3` ticks/second for 30 ticks;
+- packaged frame probe: `8.88ms` average / `12.60ms` p99; and
 - all prior wave, vessel, collision, replay, source, target, and object regressions passed.
 
-See `BATCH16_EXPLORATION_SCALE.md` for the focused design record and
+See `BATCH17_OCEAN_CONTINUITY.md` for the focused design record and
 `Documentation/CODEX_PROJECT_CONTEXT.md` for the compact working context.
 
 Build from PowerShell:
 
 ```powershell
-& 'C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.com' -batchmode -nographics -projectPath . -executeMethod WavePrototype.Editor.BatchBuild.BuildBatch16 -quit -logFile build-batch16.log
+& 'C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.com' -batchmode -nographics -projectPath . -executeMethod WavePrototype.Editor.BatchBuild.BuildBatch17 -quit -logFile build-batch17.log
 ```
 
 The packaged player also accepts `-smoketest`, `-frametest`, and `-capturepreview`.
@@ -80,7 +82,7 @@ The preview mode writes separate skiff, heavy-cutter, and full-map PNGs beside t
 
 ## Playtest question
 
-Does the larger sea create worthwhile travel and discovery, or merely longer empty intervals?
-Try normal follow view, full-map navigation, target pursuit, both vessel profiles, and several
-shelf crossings. The main questions are landmark readability, encounter frequency, and
-whether broad shelves now give breaking fronts enough physical room.
+Do later source-born fronts keep the eastern shore alive as convincingly as the initial sea?
+Try the extended scroll range, western island chain, larger rocks, target pursuit, both vessel
+profiles, and a long eastward trip. The main questions are shoreline continuity, rock
+readability, navigable shelf approaches, and whether the longer crossing feels exploratory.
