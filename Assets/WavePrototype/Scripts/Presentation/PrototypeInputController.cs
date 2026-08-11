@@ -36,6 +36,7 @@ namespace WavePrototype.Presentation
                 Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)
                     ? VesselProfileId.HeavyCutter : VesselProfileId.ArcadeSkiff);
             if (Input.GetKeyDown(KeyCode.Y)) app.TogglePlayerVesselProfile();
+            if (Input.GetKeyDown(KeyCode.N)) app.ToggleCrossSeaEvent();
             if (Input.GetKeyDown(KeyCode.C)) app.SpawnFloatingObject(
                 FloatingObjectKind.Cargo, camera.ScreenToWorld(Input.mousePosition));
             if (Input.GetKeyDown(KeyCode.X)) app.SpawnFloatingObject(

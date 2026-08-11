@@ -7,6 +7,7 @@ namespace WavePrototype.Simulation
 {
     public enum WaveState : byte { Traveling, Breaking, Spent }
     public enum WaveSourceKind : byte { WesternSwell, NorthernCrossSea, SouthernCrossSea }
+    public enum CrossSeaEventPhase : byte { Inactive, Building, Established, Departing, Draining }
     public enum FloatingObjectKind : byte { Cargo, Wreckage }
     public enum SimulationEventType : byte
     {
@@ -145,6 +146,26 @@ namespace WavePrototype.Simulation
         public int EmittedPacketCount;
         public int ActivePacketCount;
         public ulong BornTick;
+    }
+
+    [Serializable]
+    public struct CrossSeaEventData
+    {
+        public int EventId;
+        public int TriggerCount;
+        public CrossSeaEventPhase Phase;
+        public WaveSourceKind SourceKind;
+        public int SourceId;
+        public int SwellSystemId;
+        public float Intensity;
+        public float DepartureStartIntensity;
+        public int InitialSourcePacketCount;
+        public int EmittedPacketCount;
+        public int ActivePacketCount;
+        public ulong StartedTick;
+        public ulong PhaseStartedTick;
+        public ulong EmissionsStoppedTick;
+        public ulong NextAutomaticStartTick;
     }
 
     [Serializable]
@@ -391,6 +412,15 @@ namespace WavePrototype.Simulation
         public bool EnableSpatialBroadphase = true;
         public float SpatialWaveCellSize = 16f;
 
+        // A bounded second swell can be introduced without replacing the persistent
+        // western carrier. Negative automatic start keeps the playtest user-controlled.
+        public WaveSourceKind CrossSeaSourceKind = WaveSourceKind.NorthernCrossSea;
+        public float CrossSeaAutomaticStartSeconds = -1f;
+        public float CrossSeaBuildSeconds = 24f;
+        public float CrossSeaEstablishedSeconds = 60f;
+        public float CrossSeaDepartureSeconds = 20f;
+        public float CrossSeaMinimumEnergyScale = 0.55f;
+
         // Named balance values that were previously embedded in system equations.
         public float WaveFollowingThrustScale = 5.2f;
         public float WaveHeadOnDampingScale = 1.45f;
@@ -497,6 +527,12 @@ namespace WavePrototype.Simulation
         public readonly VesselProfileDefinition HeavyCutterProfile;
         public readonly bool EnableSpatialBroadphase;
         public readonly float SpatialWaveCellSize;
+        public readonly WaveSourceKind CrossSeaSourceKind;
+        public readonly float CrossSeaAutomaticStartSeconds;
+        public readonly float CrossSeaBuildSeconds;
+        public readonly float CrossSeaEstablishedSeconds;
+        public readonly float CrossSeaDepartureSeconds;
+        public readonly float CrossSeaMinimumEnergyScale;
         public readonly float WaveFollowingThrustScale;
         public readonly float WaveHeadOnDampingScale;
         public readonly float BreakingBoatDamageThreshold;
@@ -585,6 +621,12 @@ namespace WavePrototype.Simulation
             HeavyCutterProfile = source.HeavyCutterProfile;
             EnableSpatialBroadphase = source.EnableSpatialBroadphase;
             SpatialWaveCellSize = source.SpatialWaveCellSize;
+            CrossSeaSourceKind = source.CrossSeaSourceKind;
+            CrossSeaAutomaticStartSeconds = source.CrossSeaAutomaticStartSeconds;
+            CrossSeaBuildSeconds = source.CrossSeaBuildSeconds;
+            CrossSeaEstablishedSeconds = source.CrossSeaEstablishedSeconds;
+            CrossSeaDepartureSeconds = source.CrossSeaDepartureSeconds;
+            CrossSeaMinimumEnergyScale = source.CrossSeaMinimumEnergyScale;
             WaveFollowingThrustScale = source.WaveFollowingThrustScale;
             WaveHeadOnDampingScale = source.WaveHeadOnDampingScale;
             BreakingBoatDamageThreshold = source.BreakingBoatDamageThreshold;

@@ -28,6 +28,7 @@ namespace WavePrototype.Simulation
         private readonly ReadOnlyCollection<FloatingObjectData> floatingObjectView;
         private readonly ReadOnlyCollection<SimulationEvent> eventView;
         private WaveSourceSystem waveSourceSystem;
+        private CrossSeaEventSystem crossSeaEventSystem;
         private WavePropagationSystem wavePropagationSystem;
         private WaveSectionSpatialIndex waveSectionSpatialIndex;
         private WaveBoatInteractionSystem waveBoatInteractionSystem;
@@ -44,6 +45,7 @@ namespace WavePrototype.Simulation
         public IReadOnlyList<SimulationEvent> Events => eventView;
         public IReadOnlyList<WaveSourceData> WaveSources => waveSourceSystem.Sources;
         public IReadOnlyList<SwellSystemData> SwellSystems => waveSourceSystem.SwellSystems;
+        public CrossSeaEventData CrossSeaEvent => crossSeaEventSystem.Data;
         public IReadOnlyList<BoatControlCommand> RecordedControls => inputBuffer.AppliedCommands;
         public TargetMarkerData Target => targetMarkerSystem.Data;
         public int CollectedSalvageCount => floatingObjectSystem.CollectedCount;
@@ -144,6 +146,8 @@ namespace WavePrototype.Simulation
             waveBoatInteractionSystem = new WaveBoatInteractionSystem(runtimeConfig);
             boatMotionSystem = new BoatMotionSystem(runtimeConfig, Environment);
             waveSourceSystem.Reset(seed);
+            crossSeaEventSystem = new CrossSeaEventSystem(runtimeConfig, waveSourceSystem);
+            crossSeaEventSystem.Reset();
             InitialWaveTarget = waveSourceSystem.ResolveInitialWaveCount(
                 runtimeConfig.TargetWaveCount);
             PlayerBoatId = PrototypeScenario.AddInitialBoats(this);
@@ -222,6 +226,10 @@ namespace WavePrototype.Simulation
 
         public bool SpawnSwellFront(Vector2 position, float energy = 1f)
             => waveSourceSystem.SpawnSwellFront(waves, position, energy);
+
+        public bool TriggerCrossSeaEvent() => crossSeaEventSystem.Trigger(Tick);
+
+        public bool RequestCrossSeaDeparture() => crossSeaEventSystem.RequestDeparture(Tick);
 
         public void SpawnWaveForValidation(Vector2 position, Vector2 direction,
             float energy, float packetLength, float crestLength)
@@ -336,7 +344,10 @@ namespace WavePrototype.Simulation
                 waves[i] = wave;
             }
 
-            waveSourceSystem.MaintainPopulation(waves, InitialWaveTarget, Tick);
+            crossSeaEventSystem.AdvanceBeforeEmission(Tick);
+            waveSourceSystem.MaintainPopulation(waves, InitialWaveTarget, Tick,
+                crossSeaEventSystem.EmittingSourceId, crossSeaEventSystem.EmissionEnergyScale);
+            crossSeaEventSystem.SynchronizeAfterEmission(Tick);
             events.AddRange(pendingEvents);
         }
 
@@ -440,12 +451,30 @@ namespace WavePrototype.Simulation
                 Mix(ref hash, (uint)waveSourceSystem.NextWaveId);
                 Mix(ref hash, (uint)waveSourceSystem.NextSwellSystemId);
                 Mix(ref hash, waveSourceSystem.RandomState);
+                Mix(ref hash, (uint)crossSeaEventSystem.NextEventId);
                 Mix(ref hash, targetMarkerSystem.RandomState);
                 Mix(ref hash, (uint)floatingObjectSystem.NextObjectId);
                 Mix(ref hash, floatingObjectSystem.RandomState);
                 Mix(ref hash, (uint)floatingObjectSystem.CollectedCount);
                 MixFloat(ref hash, floatingObjectSystem.CollectedValue);
                 MixConfig(ref hash);
+
+                CrossSeaEventData crossSea = crossSeaEventSystem.Data;
+                Mix(ref hash, (uint)crossSea.EventId);
+                Mix(ref hash, (uint)crossSea.TriggerCount);
+                Mix(ref hash, (uint)crossSea.Phase);
+                Mix(ref hash, (uint)crossSea.SourceKind);
+                Mix(ref hash, (uint)crossSea.SourceId);
+                Mix(ref hash, (uint)crossSea.SwellSystemId);
+                MixFloat(ref hash, crossSea.Intensity);
+                MixFloat(ref hash, crossSea.DepartureStartIntensity);
+                Mix(ref hash, (uint)crossSea.InitialSourcePacketCount);
+                Mix(ref hash, (uint)crossSea.EmittedPacketCount);
+                Mix(ref hash, (uint)crossSea.ActivePacketCount);
+                Mix64(ref hash, crossSea.StartedTick);
+                Mix64(ref hash, crossSea.PhaseStartedTick);
+                Mix64(ref hash, crossSea.EmissionsStoppedTick);
+                Mix64(ref hash, crossSea.NextAutomaticStartTick);
 
                 TargetMarkerData target = targetMarkerSystem.Data;
                 MixVector(ref hash, target.Position);
@@ -661,6 +690,12 @@ namespace WavePrototype.Simulation
             Mix(ref hash, unchecked((uint)Config.PendingInputCompactionThreshold));
             MixVesselProfile(ref hash, Config.ArcadeSkiffProfile);
             MixVesselProfile(ref hash, Config.HeavyCutterProfile);
+            Mix(ref hash, (uint)Config.CrossSeaSourceKind);
+            MixFloat(ref hash, Config.CrossSeaAutomaticStartSeconds);
+            MixFloat(ref hash, Config.CrossSeaBuildSeconds);
+            MixFloat(ref hash, Config.CrossSeaEstablishedSeconds);
+            MixFloat(ref hash, Config.CrossSeaDepartureSeconds);
+            MixFloat(ref hash, Config.CrossSeaMinimumEnergyScale);
             MixFloat(ref hash, Config.WaveFollowingThrustScale);
             MixFloat(ref hash, Config.WaveHeadOnDampingScale);
             MixFloat(ref hash, Config.BreakingBoatDamageThreshold);

@@ -1,13 +1,12 @@
-# Tactical Sailing — Ocean Continuity and Longer Coast (Batch 17)
+# Tactical Sailing - Ordered Cross-Sea Event (Batch 18)
 
-Batch 17 extends the established ocean to 1350×500 units, adds a western island chain, makes
-rocks substantially larger, and allows follow-camera zoom out to 96. Boundary-born swell now
-survives the long deep-water crossing and partially obstructed fronts retain their open-water
-sections instead of disappearing as a group.
+Batch 18 keeps the established 1350 x 500 carrier ocean and adds one bounded, ordered
+cross-sea event. A deterministic northern swell can build across the persistent western
+carrier, hold, depart, and drain naturally without replacing or perturbing the normal source.
 
 ## Run the latest build
 
-Open `Builds/Batch17/TacticalSailingBatch17.exe` and keep the complete `Batch17` directory
+Open `Builds/Batch18/TacticalSailingBatch18.exe` and keep the complete `Batch18` directory
 together. Earlier batch builds remain preserved.
 
 The source project targets Unity `6000.3.2f1`. Open
@@ -21,6 +20,7 @@ The source project targets Unity `6000.3.2f1`. Open
 | S / Down | Brake and low-speed reverse |
 | A D / Left Right | Steer |
 | Y | Switch the player between skiff and heavy cutter (debug) |
+| N | Start the cross-sea / request its early departure |
 | B | Spawn an arcade skiff at the cursor |
 | Shift + B | Spawn a heavy cutter at the cursor |
 | M | Full map / return to follow camera |
@@ -39,42 +39,49 @@ The source project targets Unity `6000.3.2f1`. Open
 The `Y` switch and the vessel-spawn controls are comparison tools, not proposed gameplay
 actions. With `F3` enabled, orange points show each vessel's authoritative hull samples.
 
-## Batch 17 changes
+## Batch 18 changes
 
-- Extends the ocean from 900×500 to 1350×500 units while preserving its vertical scale.
-- Adds a deterministic five-island western chain and moves the continent with the east edge.
-- Reconstructs 59 ordered phases at the unchanged local period and spacing.
-- Reduces accidental deep-water lifetime loss and retains a front until its final section dies.
-- Makes breaking and rock absorption partial, timestep-correct energy losses.
-- Raises rock radii to `0.80–2.86` units at the reference seed and scales hazards to 784.
-- Expands follow-camera scroll from 27 to 96 while retaining full-map view on `M`.
-- Keeps bathymetry presentation near four-unit cells as the world length increases.
+- Adds an authoritative five-phase cross-sea lifecycle: build, established, departure, drain,
+  and inactive.
+- Temporarily authorizes the dormant northern source at roughly 58 degrees to the carrier.
+- Uses that source's own fixed 4.2-6.2 second period; population never triggers a replacement.
+- Leaves emitted fronts in the normal propagation, shelf, breaking, boat, rock, and debris
+  systems until their natural lifetime ends.
+- Creates fresh swell-system identity for each repeatable event and hashes all lifecycle state.
+- Keeps the western carrier clock and phase-shape sequence isolated from event emissions.
+- Adds `N`, a panel button, lifecycle status, and existing purple source diagnostics.
+- Preserves Batch 17's world, shoreline continuity, larger rocks, camera range, and density.
 
 ## Validation summary
 
-Reference editor validation passed on 2026-08-10:
+Reference editor validation passed on 2026-08-11:
 
 - deterministic reference run: 900/900 matching ticks;
 - derived reference/prior/current phases: `19 / 39 / 59` at identical `22.71`-unit spacing;
 - normal 30-second population range: `59–64`, ending at 64;
 - local/world/reference fronts: `6 / 64 / 7`;
 - shelf hazards: `320 → 640 → 784`;
-- average expanded crest: `520.15` units with 40-section capacity;
+- average expanded crest: `520.22` units with 40-section capacity;
 - nominal width crossing: `108.0` seconds;
-- boundary-to-shelf continuity: tick `4,801`, energy `0.188`, expiration tick `5,138`;
-- deterministic final hash: `C0797F93B819AC6F`;
-- 1,000-front stress rate: approximately `55` ticks/second;
-- 10,000-front diagnostic: approximately `2.3` ticks/second for 30 ticks;
-- packaged frame probe: `8.88ms` average / `12.60ms` p99; and
+- boundary-to-shelf continuity: tick `4,803`, energy `0.187`, expiration tick `5,138`;
+- cross-sea short profile: four emitted / four peak-active fronts, draining at tick `1,565`;
+- event angle/cadence: `58.4` degrees and exactly `157` ticks;
+- carrier isolation: `1,565 / 1,565` clock-matching ticks;
+- local two-system overlap: `785` ticks;
+- deterministic final hash: `4444658FDCC6EDB4`;
+- 1,000-front stress rate: approximately `58` ticks/second;
+- 10,000-front diagnostic: approximately `2.4` ticks/second for 30 ticks;
+- packaged active-event frame probe: `8.35ms` average / `8.52ms` p99 with no
+  repeated moving frames; and
 - all prior wave, vessel, collision, replay, source, target, and object regressions passed.
 
-See `BATCH17_OCEAN_CONTINUITY.md` for the focused design record and
+See `BATCH18_ORDERED_CROSS_SEA.md` for the focused design record and
 `Documentation/CODEX_PROJECT_CONTEXT.md` for the compact working context.
 
 Build from PowerShell:
 
 ```powershell
-& 'C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.com' -batchmode -nographics -projectPath . -executeMethod WavePrototype.Editor.BatchBuild.BuildBatch17 -quit -logFile build-batch17.log
+& 'C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.com' -batchmode -nographics -projectPath . -executeMethod WavePrototype.Editor.BatchBuild.BuildBatch18 -quit -logFile build-batch18.log
 ```
 
 The packaged player also accepts `-smoketest`, `-frametest`, and `-capturepreview`.
@@ -82,7 +89,8 @@ The preview mode writes separate skiff, heavy-cutter, and full-map PNGs beside t
 
 ## Playtest question
 
-Do later source-born fronts keep the eastern shore alive as convincingly as the initial sea?
-Try the extended scroll range, western island chain, larger rocks, target pursuit, both vessel
-profiles, and a long eastward trip. The main questions are shoreline continuity, rock
-readability, navigable shelf approaches, and whether the longer crossing feels exploratory.
+Start the cross-sea with `N`, watch it develop in follow and map views, then sail through the
+overlap. Is the second direction readable as one ordered system rather than random clutter?
+Does the build feel substantial without overwhelming the carrier, and does the ocean visibly
+return to its former state after departure? An early second press of `N` also tests whether a
+shortened event still ends naturally.

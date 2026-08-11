@@ -43,8 +43,9 @@ The environment is the central gameplay system. Waves, bathymetry, islands, reef
 - An optional short target-bearing arrow is allowed as presentation/debug guidance. It does
   not change the target into a course or physical buoy.
 - Normal ocean generation may use one active windward source with fronts spanning the map.
-  Cross-sea source definitions may remain dormant for later storms or scenarios but must not
-  emit during normal play.
+  Cross-sea source definitions remain dormant until an explicit storm or scenario authorizes
+  them. Batch 18's manual, bounded cross-sea is the first such scenario: it must stop its own
+  source and let emitted fronts drain without altering the persistent carrier clock.
 - A breaking crest may deliver one identity-gated impulse to floating cargo or wreckage.
   This strengthens environmental consequence without adding a player action.
 - A source's phase clock is authoritative. Initial front count reconstructs an already-running
@@ -111,6 +112,10 @@ The environment is the central gameplay system. Waves, bathymetry, islands, reef
     boundary, and shelf hazards increase to 784 with larger radii. Deep-water and segmented
     lifetime corrections ensure boundary-born swell reaches the eastern shelf in long-session
     validation before a storm or cross-sea is introduced.
+13. Batch 18 establishes one deterministic cross-sea event over the unchanged carrier ocean.
+    Its build, established, departure, and drain phases are authoritative and repeatable;
+    starting it is an explicit debug/scenario action, not ambient randomness or a new sailing
+    control. Playtesting this crossing sea precedes any generalized sea-state director.
 
 ## Architectural principles retained from v1.0
 

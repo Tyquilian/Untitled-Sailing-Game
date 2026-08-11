@@ -85,7 +85,7 @@ namespace WavePrototype.Editor
             var second = new WaveSimulation(seed);
             Require(first.Waves.Count == first.InitialWaveTarget,
                 "Initial wave population must match its resolved span/period target.");
-            Require(first.Boats.Count == 3, "Batch 17 must initialize with one player and two passive boats.");
+            Require(first.Boats.Count == 3, "Batch 18 must initialize with one player and two passive boats.");
             VesselProfileDefinition initialSkiff = first.Config.GetVesselProfile(
                 VesselProfileId.ArcadeSkiff);
             VesselProfileDefinition initialHeavy = first.Config.GetVesselProfile(
@@ -99,15 +99,23 @@ namespace WavePrototype.Editor
                     initialHeavy.HullLength > initialSkiff.HullLength * 2f,
                 "Vessel definitions do not provide the intended point-skiff / broad-heavy contrast.");
             Require(first.Config.WorldHalfExtents == new Vector2(675f, 250f),
-                "Batch 17 playable world must be 1350 x 500 units.");
+                "Batch 18 playable world must be 1350 x 500 units.");
             Require(first.Config.TargetWaveCount < 0 &&
                     first.InitialWaveTarget >= 58 && first.InitialWaveTarget <= 64,
-                $"Batch 17 span/period reconstruction resolved {first.InitialWaveTarget} fronts.");
+                $"Batch 18 span/period reconstruction resolved {first.InitialWaveTarget} fronts.");
             Require(first.Config.DesiredVisibleWaveCount == 7,
-                "Batch 17 must preserve the seven-front local density reference.");
+                "Batch 18 must preserve the seven-front local density reference.");
             Require(Mathf.Abs(first.Config.EnergyDecayPerSecond - 0.0025f) < 0.00001f &&
                     first.Config.WaveMinimumActiveSegmentFraction <= 0f,
-                "Batch 17 must use long-range deep-water retention and last-section lifetime.");
+                "Batch 18 must use long-range deep-water retention and last-section lifetime.");
+            Require(first.Config.CrossSeaSourceKind == WaveSourceKind.NorthernCrossSea &&
+                    first.Config.CrossSeaAutomaticStartSeconds < 0f &&
+                    first.Config.CrossSeaBuildSeconds > 0f &&
+                    first.Config.CrossSeaEstablishedSeconds > first.Config.CrossSeaBuildSeconds &&
+                    first.Config.CrossSeaDepartureSeconds > 0f &&
+                    first.Config.CrossSeaMinimumEnergyScale > 0f &&
+                    first.Config.CrossSeaMinimumEnergyScale < 1f,
+                "Batch 18 cross-sea defaults are not a bounded, user-triggered event.");
             Require(first.Environment.Rocks.Count >= 650,
                 $"Expanded shelves produced only {first.Environment.Rocks.Count} rock hazards.");
             ExplorationScaleProbe exploration = RunExplorationScaleProbe();
@@ -141,6 +149,27 @@ namespace WavePrototype.Editor
                 $"A partially shadowed front did not survive below the legacy group cutoff: {continuity.MinimumActiveSegments}/{continuity.InitialSegments}.");
             Require(continuity.ExpirationTick > continuity.ShelfArrivalTick,
                 $"Boundary-born swell expired before completing its terrain encounter: shelf={continuity.ShelfArrivalTick}, expired={continuity.ExpirationTick}.");
+            CrossSeaEventProbe crossSea = RunCrossSeaEventProbe();
+            Require(crossSea.Deterministic && crossSea.CompletionTick > 0,
+                "Cross-sea lifecycle diverged under identical commands.");
+            Require(crossSea.SawBuilding && crossSea.SawEstablished &&
+                    crossSea.SawDeparting && crossSea.SawDraining,
+                "Cross-sea lifecycle skipped a required phase.");
+            Require(crossSea.EmittedPackets >= 3 && crossSea.MaximumActivePackets >= 2 &&
+                    crossSea.MaximumWorldFronts > 20,
+                $"Cross-sea event was not materially present: emitted={crossSea.EmittedPackets}, active={crossSea.MaximumActivePackets}, world={crossSea.MaximumWorldFronts}.");
+            Require(crossSea.DirectionSeparation > 45f && crossSea.DirectionSeparation < 70f,
+                $"Cross-sea direction separation is unreadable: {crossSea.DirectionSeparation:0.0} degrees.");
+            Require(crossSea.MinimumIntervalTicks == crossSea.ExpectedPeriodTicks &&
+                    crossSea.MaximumIntervalTicks == crossSea.ExpectedPeriodTicks &&
+                    crossSea.MaximumEmissionBurst == 1,
+                $"Cross-sea source broke its clock: intervals={crossSea.MinimumIntervalTicks}-{crossSea.MaximumIntervalTicks}/{crossSea.ExpectedPeriodTicks}, burst={crossSea.MaximumEmissionBurst}.");
+            Require(crossSea.CarrierMatchingTicks == crossSea.CompletionTick,
+                $"Temporary event perturbed the carrier clock for {crossSea.CompletionTick - crossSea.CarrierMatchingTicks} ticks.");
+            Require(crossSea.LocalOverlapTicks > 0,
+                "Carrier and cross-sea fronts never overlapped in the central play region.");
+            Require(crossSea.RepeatSystemId > crossSea.FirstSystemId,
+                "Repeated cross-sea event did not receive fresh stream identity.");
             Require(first.Target.Enabled, "The optional roaming target must begin enabled.");
             Require(first.Target.VisitCount == 0, "The roaming target visit counter must begin at zero.");
             Require(first.IsSafeTargetPosition(first.Target.Position), "Initial target position is not safe open water.");
@@ -553,6 +582,7 @@ namespace WavePrototype.Editor
             Debug.Log($"[WAVE-VALIDATION] World: 1350x500, rocks={first.Environment.Rocks.Count}, rockRadius={minimumRockRadius:0.00}/{averageRockRadius:0.00}/{maximumRockRadius:0.00}, westernRocks={westernChainRocks}, averageCrest={averageCrest:0.00}, terrainSamples={landSamples}/{shallowSamples}/{deepSamples}, shelfDepths={continentalShelfDepth:0.00}/{outerContinentalShelfDepth:0.00}/{insularShelfDepth:0.00}/{westernShelfDepth:0.00}, nominalCrossing={nominalWidthCrossingSeconds:0.0}s");
             Debug.Log($"[WAVE-VALIDATION] Exploration scale: phases={exploration.ReferencePhases}->{exploration.PriorPhases}->{exploration.ExpandedPhases}, rocks={exploration.ReferenceRocks}->{exploration.PriorRocks}->{exploration.ExpandedRocks}, spacing={exploration.ReferenceSpacing:0.00}/{exploration.ExpandedSpacing:0.00}, crestScale={exploration.CrestScale:0.000}x, explicit={exploration.ExplicitOverridePhases}, disabled={exploration.DisabledWaves}/{exploration.DisabledObjects}");
             Debug.Log($"[WAVE-VALIDATION] Ocean continuity: segments={continuity.MinimumActiveSegments}/{continuity.InitialSegments} minimum/initial, shelfTick={continuity.ShelfArrivalTick}, expireTick={continuity.ExpirationTick}, maxX={continuity.MaximumTravelX:0.0}, shelfDepth/energy={continuity.ShelfArrivalDepth:0.00}/{continuity.ShelfArrivalEnergy:0.000}, survivedLegacyCutoff={continuity.SurvivedBelowLegacyCutoff}");
+            Debug.Log($"[WAVE-VALIDATION] Cross-sea event: completeTick={crossSea.CompletionTick}, systems={crossSea.FirstSystemId}->{crossSea.RepeatSystemId}, emitted/active/world={crossSea.EmittedPackets}/{crossSea.MaximumActivePackets}/{crossSea.MaximumWorldFronts}, direction={crossSea.DirectionSeparation:0.0}deg, cadence={crossSea.MinimumIntervalTicks}-{crossSea.MaximumIntervalTicks}/{crossSea.ExpectedPeriodTicks}, carrierTicks={crossSea.CarrierMatchingTicks}, overlapTicks={crossSea.LocalOverlapTicks}");
             Debug.Log($"[WAVE-VALIDATION] Impact: sideDisplacement={side.LateralDisplacement:0.00}, sideYaw={side.HeadingChange:0.0}°, surf={following.SpeedBeforeImpact:0.00}->{following.PeakAfterImpact:0.00}, headOn={headOn.SpeedBeforeImpact:0.00}->{headOn.MinimumAfterImpact:0.00}");
             Debug.Log($"[WAVE-VALIDATION] Crest coverage: width={crestCoverage.CrestLength:0}, inside={crestCoverage.InsideOffset:0.0}/{crestCoverage.InsideHits} hit, outside={crestCoverage.OutsideOffset:0.0}/{crestCoverage.OutsideHits} hits");
             Debug.Log($"[WAVE-VALIDATION] Passage: contacts={passage.ContactTicks}/{passage.MaximumConsecutiveContactTicks} total/consecutive, displacement={passage.BoatDisplacement:0.00}, peak={passage.PeakBoatSpeed:0.00}, lead={passage.WaveLead:0.00}");

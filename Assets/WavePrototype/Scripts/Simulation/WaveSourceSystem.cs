@@ -125,11 +125,12 @@ namespace WavePrototype.Simulation
             }
         }
 
-        public void MaintainPopulation(List<WaveData> waves, int targetCount, ulong currentTick)
+        public void MaintainPopulation(List<WaveData> waves, int targetCount, ulong currentTick,
+            int eventSourceId = 0, float eventEnergyScale = 1f)
         {
             UpdateSystemActivity(waves);
             if (targetCount <= 0) return;
-            EnsureContinuousStreams();
+            EnsureContinuousStreams(currentTick);
 
             // The source clock is authoritative. The resolved initial target reconstructs an
             // already-running sea; it does not authorize population refills or suppress phases.
@@ -138,12 +139,83 @@ namespace WavePrototype.Simulation
                 WaveSourceData source = sources[sourceIndex];
                 if (!source.Enabled) continue;
                 if (source.NextEmissionTick > currentTick) continue;
-                TryEmitContinuousFront(waves, sourceIndex, currentTick);
+                float energyScale = source.Id == eventSourceId
+                    ? Mathf.Clamp01(eventEnergyScale) : 1f;
+                TryEmitContinuousFront(waves, sourceIndex, energyScale);
                 source = sources[sourceIndex];
                 SwellSystemData system = swellSystems[FindSystemIndex(streamSystemIds[sourceIndex])];
                 source.NextEmissionTick += SecondsToTicks(system.CalmGapSeconds);
                 sources[sourceIndex] = source;
             }
+        }
+
+        public bool StartEventSource(WaveSourceKind kind, ulong currentTick,
+            out int sourceId, out int swellSystemId)
+        {
+            sourceId = 0;
+            swellSystemId = 0;
+            int sourceIndex = FindSourceIndex(kind);
+            if (sourceIndex < 0 || kind == WaveSourceKind.WesternSwell) return false;
+            WaveSourceData source = sources[sourceIndex];
+            if (source.Enabled || streamSystemIds[sourceIndex] != 0) return false;
+
+            source.Enabled = true;
+            source.NextEmissionTick = ulong.MaxValue;
+            sources[sourceIndex] = source;
+            EnsureContinuousStreams(currentTick);
+            int systemIndex = FindSystemIndex(streamSystemIds[sourceIndex]);
+            if (systemIndex < 0)
+            {
+                source.Enabled = false;
+                sources[sourceIndex] = source;
+                return false;
+            }
+
+            SwellSystemData system = swellSystems[systemIndex];
+            source = sources[sourceIndex];
+            source.SpawnedSystems++;
+            source.NextEmissionTick = currentTick + SecondsToTicks(system.CalmGapSeconds * 0.5f);
+            sources[sourceIndex] = source;
+            sourceId = source.Id;
+            swellSystemId = system.Id;
+            return true;
+        }
+
+        public bool StopEventSource(int sourceId)
+        {
+            int sourceIndex = FindSourceIndex(sourceId);
+            if (sourceIndex < 0 || sources[sourceIndex].Kind == WaveSourceKind.WesternSwell)
+                return false;
+            WaveSourceData source = sources[sourceIndex];
+            source.Enabled = false;
+            source.NextEmissionTick = ulong.MaxValue;
+            sources[sourceIndex] = source;
+            return true;
+        }
+
+        public bool ReleaseEventStream(int sourceId, int swellSystemId)
+        {
+            int sourceIndex = FindSourceIndex(sourceId);
+            int systemIndex = FindSystemIndex(swellSystemId);
+            if (sourceIndex < 0 || systemIndex < 0 || sources[sourceIndex].Enabled ||
+                streamSystemIds[sourceIndex] != swellSystemId ||
+                swellSystems[systemIndex].ActivePacketCount > 0)
+                return false;
+            streamSystemIds[sourceIndex] = 0;
+            return true;
+        }
+
+        public bool TryGetSource(WaveSourceKind kind, out WaveSourceData source)
+        {
+            int index = FindSourceIndex(kind);
+            source = index < 0 ? default : sources[index];
+            return index >= 0;
+        }
+
+        public int GetSystemActivePacketCount(int systemId)
+        {
+            int index = FindSystemIndex(systemId);
+            return index < 0 ? 0 : swellSystems[index].ActivePacketCount;
         }
 
         public bool SpawnSwellFront(List<WaveData> waves, Vector2 position, float energy)
@@ -157,10 +229,11 @@ namespace WavePrototype.Simulation
                 if (systemIndex < 0) continue;
                 SwellSystemData system = swellSystems[systemIndex];
                 AddSystemWave(waves, system.Id, source.Id, position, system.Direction,
-                    energy, system.MeanPacketLength, system.MeanCrestLength);
+                    energy, system.MeanPacketLength, system.MeanCrestLength,
+                    source.SpawnedPackets);
                 source.SpawnedTrains++;
                 source.SpawnedPackets++;
-                source.SpawnedSystems = 1;
+                source.SpawnedSystems = Mathf.Max(1, source.SpawnedSystems);
                 sources[sourceIndex] = source;
                 system.EmittedPacketCount++;
                 system.ActivePacketCount++;
@@ -200,7 +273,7 @@ namespace WavePrototype.Simulation
             return count;
         }
 
-        private void EnsureContinuousStreams()
+        private void EnsureContinuousStreams(ulong bornTick = 0)
         {
             for (int sourceIndex = 0; sourceIndex < sources.Count; sourceIndex++)
             {
@@ -233,7 +306,7 @@ namespace WavePrototype.Simulation
                     InitialPacketCount = 0,
                     EmittedPacketCount = 0,
                     ActivePacketCount = 0,
-                    BornTick = 0
+                    BornTick = bornTick
                 };
                 streamSystemIds[sourceIndex] = system.Id;
                 swellSystems.Add(system);
@@ -266,7 +339,7 @@ namespace WavePrototype.Simulation
                 float energy = system.BaseEnergy *
                     (0.9f + 0.13f * Mathf.Sin(packetIndex * 0.31f + source.Id * 1.7f));
                 AddSystemWave(waves, system.Id, source.Id, position, direction, energy,
-                    system.MeanPacketLength, system.MeanCrestLength);
+                    system.MeanPacketLength, system.MeanCrestLength, source.SpawnedPackets);
                 source.SpawnedPackets++;
                 sources[sourceIndex] = source;
                 return true;
@@ -274,7 +347,8 @@ namespace WavePrototype.Simulation
             return false;
         }
 
-        private bool TryEmitContinuousFront(List<WaveData> waves, int sourceIndex, ulong currentTick)
+        private bool TryEmitContinuousFront(List<WaveData> waves, int sourceIndex,
+            float energyScale)
         {
             if (sourceIndex < 0 || sourceIndex >= sources.Count) return false;
             WaveSourceData source = sources[sourceIndex];
@@ -293,11 +367,12 @@ namespace WavePrototype.Simulation
                 if (!InsideWorld(position) || environment.IsLand(position)) continue;
 
                 float energy = system.BaseEnergy *
-                    (0.88f + 0.16f * Mathf.Sin(phaseIndex * 0.23f + source.Id * 0.7f));
+                    (0.88f + 0.16f * Mathf.Sin(phaseIndex * 0.23f + source.Id * 0.7f)) *
+                    energyScale;
                 AddSystemWave(waves, system.Id, source.Id, position, direction, energy,
-                    system.MeanPacketLength, system.MeanCrestLength);
+                    system.MeanPacketLength, system.MeanCrestLength, phaseIndex);
                 source.SpawnedTrains++;
-                source.SpawnedSystems = 1;
+                source.SpawnedSystems = Mathf.Max(1, source.SpawnedSystems);
                 source.SpawnedPackets++;
                 sources[sourceIndex] = source;
                 system.EmittedPacketCount++;
@@ -333,7 +408,7 @@ namespace WavePrototype.Simulation
             float energy = system.BaseEnergy *
                 (0.88f + 0.16f * Mathf.Sin(phaseIndex * 0.23f + source.Id * 0.7f));
             AddSystemWave(waves, system.Id, source.Id, position, direction, energy,
-                system.MeanPacketLength, system.MeanCrestLength);
+                system.MeanPacketLength, system.MeanCrestLength, phaseIndex);
             source.SpawnedPackets++;
             sources[sourceIndex] = source;
             return true;
@@ -361,12 +436,18 @@ namespace WavePrototype.Simulation
 
         private void AddSystemWave(List<WaveData> waves, int swellSystemId, int sourceId,
             Vector2 position, Vector2 direction, float energy, float meanPacketLength,
-            float meanCrestLength)
+            float meanCrestLength, int phaseIndex)
         {
             direction = direction.sqrMagnitude < 0.001f ? Vector2.right : direction.normalized;
             energy = Mathf.Clamp(energy, 0.08f, 3.2f);
-            float packetLength = meanPacketLength * random.Range(0.97f, 1.03f);
-            float crestLength = meanCrestLength * random.Range(0.97f, 1.03f);
+            // Phase-local variation prevents a temporary source from perturbing the carrier
+            // swell's shape sequence through a shared random-number stream.
+            float packetVariation = Frac(Mathf.Sin((swellSystemId * 71 + phaseIndex * 29) *
+                0.173f) * 43758.5453f);
+            float crestVariation = Frac(Mathf.Sin((swellSystemId * 43 + phaseIndex * 47) *
+                0.219f) * 24634.6345f);
+            float packetLength = meanPacketLength * Mathf.Lerp(0.97f, 1.03f, packetVariation);
+            float crestLength = meanCrestLength * Mathf.Lerp(0.97f, 1.03f, crestVariation);
             float speed = DeepWaterCruiseSpeed(packetLength);
             waves.Add(new WaveData
             {
@@ -465,6 +546,20 @@ namespace WavePrototype.Simulation
         {
             for (int i = 0; i < swellSystems.Count; i++)
                 if (swellSystems[i].Id == systemId) return i;
+            return -1;
+        }
+
+        private int FindSourceIndex(WaveSourceKind kind)
+        {
+            for (int i = 0; i < sources.Count; i++)
+                if (sources[i].Kind == kind) return i;
+            return -1;
+        }
+
+        private int FindSourceIndex(int sourceId)
+        {
+            for (int i = 0; i < sources.Count; i++)
+                if (sources[i].Id == sourceId) return i;
             return -1;
         }
 
