@@ -18,6 +18,15 @@ namespace WavePrototype.Editor
             public readonly int MaximumEmissionBurst;
             public readonly int CarrierMatchingTicks;
             public readonly int LocalOverlapTicks;
+            public readonly Vector2 EntryPoint;
+            public readonly Vector2 EmissionCenter;
+            public readonly int FirstEmissionTick;
+            public readonly int FirstEntryTick;
+            public readonly int FirstEmissionPendingSegments;
+            public readonly int FirstEmissionEnteredSegments;
+            public readonly int MaximumPendingSegments;
+            public readonly int InteriorSegmentsAtEmission;
+            public readonly bool PendingEnergyStable;
             public readonly bool SawBuilding;
             public readonly bool SawEstablished;
             public readonly bool SawDeparting;
@@ -30,6 +39,10 @@ namespace WavePrototype.Editor
                 int maximumActivePackets, int maximumWorldFronts, float directionSeparation,
                 int expectedPeriodTicks, int minimumIntervalTicks, int maximumIntervalTicks,
                 int maximumEmissionBurst, int carrierMatchingTicks, int localOverlapTicks,
+                Vector2 entryPoint, Vector2 emissionCenter, int firstEmissionTick,
+                int firstEntryTick, int firstEmissionPendingSegments,
+                int firstEmissionEnteredSegments, int maximumPendingSegments,
+                int interiorSegmentsAtEmission, bool pendingEnergyStable,
                 bool sawBuilding, bool sawEstablished, bool sawDeparting, bool sawDraining,
                 bool deterministic, int firstSystemId, int repeatSystemId)
             {
@@ -44,6 +57,15 @@ namespace WavePrototype.Editor
                 MaximumEmissionBurst = maximumEmissionBurst;
                 CarrierMatchingTicks = carrierMatchingTicks;
                 LocalOverlapTicks = localOverlapTicks;
+                EntryPoint = entryPoint;
+                EmissionCenter = emissionCenter;
+                FirstEmissionTick = firstEmissionTick;
+                FirstEntryTick = firstEntryTick;
+                FirstEmissionPendingSegments = firstEmissionPendingSegments;
+                FirstEmissionEnteredSegments = firstEmissionEnteredSegments;
+                MaximumPendingSegments = maximumPendingSegments;
+                InteriorSegmentsAtEmission = interiorSegmentsAtEmission;
+                PendingEnergyStable = pendingEnergyStable;
                 SawBuilding = sawBuilding;
                 SawEstablished = sawEstablished;
                 SawDeparting = sawDeparting;
@@ -59,7 +81,10 @@ namespace WavePrototype.Editor
             SimulationConfig CreateConfig() => new SimulationConfig
             {
                 WorldHalfExtents = new Vector2(225f, 125f),
-                TargetWaveCount = -1,
+                // The lifecycle probe needs representative carrier overlap, not a second
+                // playable-density benchmark. Eight ordered carrier phases keep the long
+                // entry/drain proof focused and avoid thermally biasing later stress gates.
+                TargetWaveCount = 8,
                 InitialFloatingObjectCount = 0,
                 CrossSeaAutomaticStartSeconds = -1f,
                 CrossSeaBuildSeconds = 6f,
@@ -88,6 +113,8 @@ namespace WavePrototype.Editor
 
             SwellSystemData carrier = first.SwellSystems[0];
             SwellSystemData cross = first.SwellSystems[1];
+            Require(cross.UsesDirectionalBoundaryEntry,
+                "Cross-sea system did not select directional boundary entry.");
             float directionSeparation = Vector2.Angle(carrier.Direction, cross.Direction);
             int expectedPeriodTicks = Mathf.CeilToInt(cross.CalmGapSeconds /
                 first.Config.FixedDeltaTime);
@@ -100,11 +127,18 @@ namespace WavePrototype.Editor
             int maximumWorld = first.Waves.Count;
             int carrierMatchingTicks = 0;
             int localOverlapTicks = 0;
+            int firstEmissionTick = 0;
+            int firstEntryTick = 0;
+            int firstEmissionPending = 0;
+            int firstEmissionEntered = 0;
+            int maximumPending = 0;
+            int interiorAtEmission = 0;
+            bool pendingEnergyStable = true;
             bool deterministic = first.CalculateStateHash() == second.CalculateStateHash();
             bool sawBuilding = false, sawEstablished = false, sawDeparting = false, sawDraining = false;
             int completionTick = 0;
 
-            for (int step = 0; step < 2400; step++)
+            for (int step = 0; step < 4800; step++)
             {
                 first.SetPlayerControl(0f, 0f);
                 second.SetPlayerControl(0f, 0f);
@@ -121,12 +155,27 @@ namespace WavePrototype.Editor
                 sawDraining |= state.Phase == CrossSeaEventPhase.Draining;
                 maximumActive = Mathf.Max(maximumActive, state.ActivePacketCount);
                 maximumWorld = Mathf.Max(maximumWorld, first.Waves.Count);
+                int pendingSegments = CountSystemSegments(first, state.SwellSystemId, false);
+                int enteredSegments = CountSystemSegments(first, state.SwellSystemId, true);
+                maximumPending = Mathf.Max(maximumPending, pendingSegments);
+                if (firstEntryTick == 0 && enteredSegments > 0)
+                    firstEntryTick = (int)first.Tick;
+                pendingEnergyStable &= PendingSystemEnergyIsStable(first,
+                    state.SwellSystemId);
 
                 int burst = state.EmittedPacketCount - priorEventPackets;
                 maximumBurst = Mathf.Max(maximumBurst, burst);
                 if (burst > 0)
                 {
                     int emissionTick = (int)first.Tick;
+                    if (firstEmissionTick == 0)
+                    {
+                        firstEmissionTick = emissionTick;
+                        firstEmissionPending = pendingSegments;
+                        firstEmissionEntered = enteredSegments;
+                        interiorAtEmission = CountInteriorSystemSegments(first,
+                            state.SwellSystemId, 2f);
+                    }
                     if (priorEmissionTick >= 0)
                     {
                         int interval = emissionTick - priorEmissionTick;
@@ -188,11 +237,33 @@ namespace WavePrototype.Editor
                     automatic.CrossSeaEvent.Phase == CrossSeaEventPhase.Building,
                 "Configured automatic cross-sea start did not fire on its deterministic tick.");
 
+            SimulationConfig southernConfig = CreateConfig();
+            southernConfig.TargetWaveCount = 1;
+            southernConfig.CrossSeaSourceKind = WaveSourceKind.SouthernCrossSea;
+            var southern = new WaveSimulation(9184, southernConfig,
+                new ConstantDepthEnvironmentFactory(12f));
+            Require(southern.TriggerCrossSeaEvent(),
+                "Southern directional-entry source could not be triggered.");
+            SwellSystemData southernSystem = southern.SwellSystems[1];
+            Require(Vector2.Distance(southernSystem.BoundaryEntryPoint,
+                        new Vector2(-225f, -125f)) < 0.01f &&
+                    southernSystem.UsesDirectionalBoundaryEntry,
+                $"Southern cross-sea selected invalid upstream entry {southernSystem.BoundaryEntryPoint}.");
+            for (int tick = 0; tick < 300 && southern.CrossSeaEvent.EmittedPacketCount == 0; tick++)
+                southern.Step();
+            Require(southern.CrossSeaEvent.EmittedPacketCount == 1 &&
+                    CountSystemSegments(southern, southernSystem.Id, true) == 0 &&
+                    CountSystemSegments(southern, southernSystem.Id, false) >= 30,
+                "Southern cross-sea materialized inside the map instead of pending at its corner.");
+
             return new CrossSeaEventProbe(completionTick, completedPackets,
                 maximumActive, maximumWorld, directionSeparation, expectedPeriodTicks,
                 minimumInterval == int.MaxValue ? 0 : minimumInterval, maximumInterval,
-                maximumBurst, carrierMatchingTicks, localOverlapTicks, sawBuilding,
-                sawEstablished, sawDeparting, sawDraining, deterministic,
+                maximumBurst, carrierMatchingTicks, localOverlapTicks,
+                cross.BoundaryEntryPoint, cross.EmissionCenter, firstEmissionTick,
+                firstEntryTick, firstEmissionPending, firstEmissionEntered,
+                maximumPending, interiorAtEmission, pendingEnergyStable,
+                sawBuilding, sawEstablished, sawDeparting, sawDraining, deterministic,
                 firstSystemId, repeatSystemId);
         }
 
@@ -217,10 +288,75 @@ namespace WavePrototype.Editor
                 for (int segmentIndex = 0; segmentIndex < segments.Length; segmentIndex++)
                 {
                     WaveSegmentData segment = segments[segmentIndex];
-                    if (!segment.Active || (segment.Position - point).sqrMagnitude > radiusSquared)
+                    if (!segment.Active || segment.State == WaveState.PendingEntry ||
+                        (segment.Position - point).sqrMagnitude > radiusSquared)
                         continue;
                     count++;
                     break;
+                }
+            }
+            return count;
+        }
+
+        private static int CountSystemSegments(WaveSimulation simulation, int systemId,
+            bool entered)
+        {
+            int count = 0;
+            for (int waveIndex = 0; waveIndex < simulation.Waves.Count; waveIndex++)
+            {
+                WaveData wave = simulation.Waves[waveIndex];
+                if (wave.SwellSystemId != systemId) continue;
+                for (int segmentIndex = 0; segmentIndex < wave.Segments.Length; segmentIndex++)
+                {
+                    WaveSegmentData segment = wave.Segments[segmentIndex];
+                    if ((segment.State != WaveState.PendingEntry) == entered &&
+                        (entered ? segment.Active : true)) count++;
+                }
+            }
+            return count;
+        }
+
+        private static bool PendingSystemEnergyIsStable(WaveSimulation simulation, int systemId)
+        {
+            for (int waveIndex = 0; waveIndex < simulation.Waves.Count; waveIndex++)
+            {
+                WaveData wave = simulation.Waves[waveIndex];
+                if (wave.SwellSystemId != systemId) continue;
+                float pendingEnergy = 0f;
+                bool foundPending = false;
+                for (int segmentIndex = 0; segmentIndex < wave.Segments.Length; segmentIndex++)
+                {
+                    WaveSegmentData segment = wave.Segments[segmentIndex];
+                    if (segment.State != WaveState.PendingEntry) continue;
+                    if (!foundPending)
+                    {
+                        pendingEnergy = segment.Energy;
+                        foundPending = true;
+                    }
+                    if (Mathf.Abs(segment.Energy - pendingEnergy) > 0.0001f ||
+                        segment.BreakingIntensity > 0f || segment.FoamEnergy > 0f)
+                        return false;
+                }
+            }
+            return true;
+        }
+
+        private static int CountInteriorSystemSegments(WaveSimulation simulation,
+            int systemId, float minimumEdgeDistance)
+        {
+            int count = 0;
+            Vector2 half = simulation.Config.WorldHalfExtents;
+            for (int waveIndex = 0; waveIndex < simulation.Waves.Count; waveIndex++)
+            {
+                WaveData wave = simulation.Waves[waveIndex];
+                if (wave.SwellSystemId != systemId) continue;
+                for (int segmentIndex = 0; segmentIndex < wave.Segments.Length; segmentIndex++)
+                {
+                    WaveSegmentData segment = wave.Segments[segmentIndex];
+                    if (!segment.Active || segment.State == WaveState.PendingEntry) continue;
+                    float edgeDistance = Mathf.Min(half.x - Mathf.Abs(segment.Position.x),
+                        half.y - Mathf.Abs(segment.Position.y));
+                    if (edgeDistance > minimumEdgeDistance) count++;
                 }
             }
             return count;

@@ -153,7 +153,30 @@ namespace WavePrototype.Presentation
                 Vector2 midpoint = (source.SegmentStart + source.SegmentEnd) * 0.5f;
                 AddQuad(dynamicVertices, dynamicColors, dynamicTriangles, midpoint,
                     new Vector2(segment.magnitude, 0.22f), angle, color, 0.27f);
-                if (source.Enabled)
+                if (!source.Enabled) continue;
+                bool directionalEntryShown = false;
+                for (int systemIndex = simulation.SwellSystems.Count - 1;
+                     systemIndex >= 0; systemIndex--)
+                {
+                    SwellSystemData system = simulation.SwellSystems[systemIndex];
+                    if (system.SourceId != source.Id || !system.UsesDirectionalBoundaryEntry)
+                        continue;
+                    Vector2 crestAxis = new Vector2(-system.Direction.y, system.Direction.x);
+                    float crestAngle = Mathf.Atan2(crestAxis.y, crestAxis.x) * Mathf.Rad2Deg;
+                    AddQuad(dynamicVertices, dynamicColors, dynamicTriangles,
+                        system.EmissionCenter,
+                        new Vector2(system.MeanCrestLength, 0.28f), crestAngle,
+                        new Color(color.r, color.g, color.b, 0.26f), 0.275f);
+                    AddCircle(dynamicVertices, dynamicColors, dynamicTriangles,
+                        system.BoundaryEntryPoint, 2.4f,
+                        new Color(color.r, color.g, color.b, 0.72f), 0.28f, 16);
+                    AddVector(dynamicVertices, dynamicColors, dynamicTriangles,
+                        system.BoundaryEntryPoint, system.Direction * 9f,
+                        color, 0.285f, 0.18f);
+                    directionalEntryShown = true;
+                    break;
+                }
+                if (!directionalEntryShown)
                     AddVector(dynamicVertices, dynamicColors, dynamicTriangles, midpoint,
                         source.Direction * 7f, color, 0.28f, 0.18f);
             }

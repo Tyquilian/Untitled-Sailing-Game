@@ -30,6 +30,7 @@ namespace WavePrototype.Simulation
         public uint RandomState => random.State;
         public int NextWaveId => nextWaveId;
         public int NextSwellSystemId => nextSwellSystemId;
+        public bool HasDirectionalBoundarySystems { get; private set; }
 
         public WaveSourceSystem(SimulationConfig config, IOceanEnvironment environment)
         {
@@ -45,6 +46,7 @@ namespace WavePrototype.Simulation
             nextWaveId = 1;
             nextSwellSystemId = 1;
             maintenanceCursor = 0;
+            HasDirectionalBoundarySystems = false;
             sources.Clear();
             swellSystems.Clear();
             for (int i = 0; i < streamSystemIds.Length; i++) streamSystemIds[i] = 0;
@@ -54,10 +56,10 @@ namespace WavePrototype.Simulation
                 new Vector2(-half.x, -half.y + 2f), new Vector2(-half.x, half.y - 2f),
                 Vector2.right, 0.6f, 1f, 2.3f, 2.7f, true));
             sources.Add(CreateSource(2, WaveSourceKind.NorthernCrossSea,
-                new Vector2(-half.x * 0.35f, half.y), new Vector2(half.x, half.y),
+                new Vector2(-half.x, half.y), new Vector2(half.x, half.y),
                 DirectionFromDegrees(-58f), 3.8f, 0f, 4.2f, 6.2f, false));
             sources.Add(CreateSource(3, WaveSourceKind.SouthernCrossSea,
-                new Vector2(-half.x * 0.2f, -half.y), new Vector2(half.x, -half.y),
+                new Vector2(-half.x, -half.y), new Vector2(half.x, -half.y),
                 DirectionFromDegrees(42f), 3.8f, 0f, 4.5f, 6.5f, false));
         }
 
@@ -291,6 +293,15 @@ namespace WavePrototype.Simulation
                     Mathf.Abs(crestAxis.y) * half.y);
                 float meanCrestLength = crossMapSpan +
                     Mathf.Max(8f, config.WaveSegmentTargetSpacing * 1.15f);
+                Vector2 boundaryEntryPoint = (source.SegmentStart + source.SegmentEnd) * 0.5f;
+                Vector2 emissionCenter = boundaryEntryPoint;
+                bool directionalEntry = source.EntryMode == WaveSourceEntryMode.DirectionalCorner;
+                if (directionalEntry)
+                {
+                    CalculateDirectionalBoundaryEntry(preliminaryDirection,
+                        out boundaryEntryPoint, out emissionCenter, out meanCrestLength);
+                    HasDirectionalBoundarySystems = true;
+                }
                 float period = random.Range(source.MinimumCalmSeconds, source.MaximumCalmSeconds);
                 float spacing = DeepWaterCruiseSpeed(meanPacketLength) * period;
                 var system = new SwellSystemData
@@ -298,6 +309,8 @@ namespace WavePrototype.Simulation
                     Id = nextSwellSystemId++,
                     SourceId = source.Id,
                     Direction = preliminaryDirection,
+                    BoundaryEntryPoint = boundaryEntryPoint,
+                    EmissionCenter = emissionCenter,
                     BaseEnergy = random.Range(source.MinimumEnergy, source.MaximumEnergy),
                     PacketSpacing = spacing,
                     MeanPacketLength = meanPacketLength,
@@ -306,7 +319,8 @@ namespace WavePrototype.Simulation
                     InitialPacketCount = 0,
                     EmittedPacketCount = 0,
                     ActivePacketCount = 0,
-                    BornTick = bornTick
+                    BornTick = bornTick,
+                    UsesDirectionalBoundaryEntry = directionalEntry
                 };
                 streamSystemIds[sourceIndex] = system.Id;
                 swellSystems.Add(system);
@@ -324,7 +338,7 @@ namespace WavePrototype.Simulation
 
             for (int attempt = 0; attempt < 18; attempt++)
             {
-                Vector2 boundary = (source.SegmentStart + source.SegmentEnd) * 0.5f;
+                Vector2 boundary = system.EmissionCenter;
                 float maximumTravel = DistanceToWorldExit(boundary, system.Direction);
                 int slots = Mathf.Max(1, Mathf.FloorToInt((maximumTravel - 1f) /
                     Mathf.Max(1f, system.PacketSpacing)));
@@ -339,7 +353,8 @@ namespace WavePrototype.Simulation
                 float energy = system.BaseEnergy *
                     (0.9f + 0.13f * Mathf.Sin(packetIndex * 0.31f + source.Id * 1.7f));
                 AddSystemWave(waves, system.Id, source.Id, position, direction, energy,
-                    system.MeanPacketLength, system.MeanCrestLength, source.SpawnedPackets);
+                    system.MeanPacketLength, system.MeanCrestLength, source.SpawnedPackets,
+                    false);
                 source.SpawnedPackets++;
                 sources[sourceIndex] = source;
                 return true;
@@ -360,17 +375,21 @@ namespace WavePrototype.Simulation
 
             for (int attempt = 0; attempt < 16; attempt++)
             {
-                Vector2 boundary = (source.SegmentStart + source.SegmentEnd) * 0.5f;
-                Vector2 direction = Rotate(system.Direction,
-                    Mathf.Sin(phaseIndex * 0.29f + source.Id) * 0.12f);
+                Vector2 boundary = system.EmissionCenter;
+                Vector2 direction = system.UsesDirectionalBoundaryEntry
+                    ? system.Direction
+                    : Rotate(system.Direction,
+                        Mathf.Sin(phaseIndex * 0.29f + source.Id) * 0.12f);
                 Vector2 position = boundary + direction * 0.45f;
-                if (!InsideWorld(position) || environment.IsLand(position)) continue;
+                if (!system.UsesDirectionalBoundaryEntry &&
+                    (!InsideWorld(position) || environment.IsLand(position))) continue;
 
                 float energy = system.BaseEnergy *
                     (0.88f + 0.16f * Mathf.Sin(phaseIndex * 0.23f + source.Id * 0.7f)) *
                     energyScale;
                 AddSystemWave(waves, system.Id, source.Id, position, direction, energy,
-                    system.MeanPacketLength, system.MeanCrestLength, phaseIndex);
+                    system.MeanPacketLength, system.MeanCrestLength, phaseIndex,
+                    system.UsesDirectionalBoundaryEntry);
                 source.SpawnedTrains++;
                 source.SpawnedSystems = Mathf.Max(1, source.SpawnedSystems);
                 source.SpawnedPackets++;
@@ -408,7 +427,7 @@ namespace WavePrototype.Simulation
             float energy = system.BaseEnergy *
                 (0.88f + 0.16f * Mathf.Sin(phaseIndex * 0.23f + source.Id * 0.7f));
             AddSystemWave(waves, system.Id, source.Id, position, direction, energy,
-                system.MeanPacketLength, system.MeanCrestLength, phaseIndex);
+                system.MeanPacketLength, system.MeanCrestLength, phaseIndex, false);
             source.SpawnedPackets++;
             sources[sourceIndex] = source;
             return true;
@@ -436,7 +455,7 @@ namespace WavePrototype.Simulation
 
         private void AddSystemWave(List<WaveData> waves, int swellSystemId, int sourceId,
             Vector2 position, Vector2 direction, float energy, float meanPacketLength,
-            float meanCrestLength, int phaseIndex)
+            float meanCrestLength, int phaseIndex, bool directionalBoundaryEntry = false)
         {
             direction = direction.sqrMagnitude < 0.001f ? Vector2.right : direction.normalized;
             energy = Mathf.Clamp(energy, 0.08f, 3.2f);
@@ -447,7 +466,9 @@ namespace WavePrototype.Simulation
             float crestVariation = Frac(Mathf.Sin((swellSystemId * 43 + phaseIndex * 47) *
                 0.219f) * 24634.6345f);
             float packetLength = meanPacketLength * Mathf.Lerp(0.97f, 1.03f, packetVariation);
-            float crestLength = meanCrestLength * Mathf.Lerp(0.97f, 1.03f, crestVariation);
+            float crestLength = meanCrestLength * (directionalBoundaryEntry
+                ? Mathf.Lerp(0.97f, 1f, crestVariation)
+                : Mathf.Lerp(0.97f, 1.03f, crestVariation));
             float speed = DeepWaterCruiseSpeed(packetLength);
             waves.Add(new WaveData
             {
@@ -460,8 +481,9 @@ namespace WavePrototype.Simulation
                 Speed = speed,
                 PacketLength = packetLength,
                 CrestLength = crestLength,
-                State = WaveState.Traveling,
-                MutableSegments = CreateSegments(position, direction, energy, speed, crestLength)
+                State = directionalBoundaryEntry ? WaveState.PendingEntry : WaveState.Traveling,
+                MutableSegments = CreateSegments(position, direction, energy, speed, crestLength,
+                    directionalBoundaryEntry)
             });
         }
 
@@ -495,12 +517,13 @@ namespace WavePrototype.Simulation
                 PacketLength = packetLength,
                 CrestLength = crestLength,
                 State = WaveState.Traveling,
-                MutableSegments = CreateSegments(position, direction, energy, speed, crestLength)
+                MutableSegments = CreateSegments(position, direction, energy, speed, crestLength,
+                    false)
             });
         }
 
         private WaveSegmentData[] CreateSegments(Vector2 position, Vector2 direction,
-            float energy, float speed, float crestLength)
+            float energy, float speed, float crestLength, bool directionalBoundaryEntry)
         {
             int count = crestLength < 16f
                 ? 1
@@ -513,7 +536,8 @@ namespace WavePrototype.Simulation
             {
                 float crest01 = count == 1 ? 0.5f : index / (count - 1f);
                 Vector2 segmentPosition = position + crestAxis * ((crest01 - 0.5f) * crestLength);
-                float depth = environment.SampleDepth(segmentPosition);
+                bool enteredWorld = !directionalBoundaryEntry || InsideWorld(segmentPosition);
+                float depth = enteredWorld ? environment.SampleDepth(segmentPosition) : 12f;
                 segments[index] = new WaveSegmentData
                 {
                     Index = index,
@@ -527,8 +551,8 @@ namespace WavePrototype.Simulation
                         ? environment.SampleDepthGradient(segmentPosition) : Vector2.zero,
                     BreakingIntensity = 0f,
                     FoamEnergy = 0f,
-                    State = WaveState.Traveling,
-                    Active = true
+                    State = enteredWorld ? WaveState.Traveling : WaveState.PendingEntry,
+                    Active = enteredWorld
                 };
             }
             return segments;
@@ -600,6 +624,47 @@ namespace WavePrototype.Simulation
             return distance == float.MaxValue ? 0f : Mathf.Max(0f, distance);
         }
 
+        private void CalculateDirectionalBoundaryEntry(Vector2 direction,
+            out Vector2 entryPoint, out Vector2 emissionCenter, out float crestLength)
+        {
+            direction = direction.sqrMagnitude < 0.001f ? Vector2.right : direction.normalized;
+            Vector2 axis = new Vector2(-direction.y, direction.x);
+            Vector2 half = config.WorldHalfExtents;
+            Vector2[] corners =
+            {
+                new Vector2(-half.x, -half.y), new Vector2(-half.x, half.y),
+                new Vector2(half.x, -half.y), new Vector2(half.x, half.y)
+            };
+            float minimumPhase = float.MaxValue;
+            float minimumLateral = float.MaxValue;
+            float maximumLateral = float.MinValue;
+            entryPoint = corners[0];
+            for (int i = 0; i < corners.Length; i++)
+            {
+                float phase = Vector2.Dot(corners[i], direction);
+                float lateral = Vector2.Dot(corners[i], axis);
+                if (phase < minimumPhase)
+                {
+                    minimumPhase = phase;
+                    entryPoint = corners[i];
+                }
+                minimumLateral = Mathf.Min(minimumLateral, lateral);
+                maximumLateral = Mathf.Max(maximumLateral, lateral);
+            }
+
+            // Avoid measure-zero corner rays that could step across a corner without ever
+            // producing an in-bounds sample. Every retained section trajectory intersects
+            // real map area while the crest still begins at the upstream phase plane.
+            float lateralInset = Mathf.Min(config.WaveSegmentTargetSpacing * 0.35f,
+                (maximumLateral - minimumLateral) * 0.01f);
+            minimumLateral += lateralInset;
+            maximumLateral -= lateralInset;
+            float centerLateral = (minimumLateral + maximumLateral) * 0.5f;
+            emissionCenter = direction * minimumPhase + axis * centerLateral;
+            crestLength = Mathf.Max(config.WaveSegmentTargetSpacing,
+                maximumLateral - minimumLateral);
+        }
+
         private bool InsideWorld(Vector2 position)
         {
             Vector2 half = config.WorldHalfExtents;
@@ -614,6 +679,9 @@ namespace WavePrototype.Simulation
             {
                 Id = id,
                 Kind = kind,
+                EntryMode = kind == WaveSourceKind.WesternSwell
+                    ? WaveSourceEntryMode.BoundarySegment
+                    : WaveSourceEntryMode.DirectionalCorner,
                 Enabled = enabled,
                 SegmentStart = start,
                 SegmentEnd = end,

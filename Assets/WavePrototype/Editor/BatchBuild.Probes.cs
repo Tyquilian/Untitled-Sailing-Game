@@ -100,6 +100,8 @@ namespace WavePrototype.Editor
                     Require(segment.Index == segmentIndex,
                         $"Wave {wave.Id} segment order is not stable at {segmentIndex}.");
                     Require(segment.Active, $"Wave {wave.Id} segment {segmentIndex} begins inactive.");
+                    Require(segment.State != WaveState.PendingEntry,
+                        $"Normal-ocean wave {wave.Id} segment {segmentIndex} begins pending entry.");
                     Require(segment.BreakingIntensity == 0f && segment.FoamEnergy == 0f,
                         $"Wave {wave.Id} segment {segmentIndex} begins with stale breaker state.");
                 float projection = Vector2.Dot(segment.Position - wave.Position, crestAxis);
@@ -640,7 +642,8 @@ namespace WavePrototype.Editor
             for (int i = 0; i < simulation.SwellSystems.Count && finite; i++)
             {
                 SwellSystemData system = simulation.SwellSystems[i];
-                finite = IsFinite(system.Direction) && IsFinite(system.BaseEnergy) &&
+                finite = IsFinite(system.Direction) && IsFinite(system.BoundaryEntryPoint) &&
+                         IsFinite(system.EmissionCenter) && IsFinite(system.BaseEnergy) &&
                          IsFinite(system.PacketSpacing) && IsFinite(system.MeanPacketLength) &&
                          IsFinite(system.MeanCrestLength) && IsFinite(system.CalmGapSeconds);
             }

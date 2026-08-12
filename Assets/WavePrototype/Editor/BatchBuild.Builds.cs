@@ -474,8 +474,37 @@ namespace WavePrototype.Editor
             }
         }
 
+        [MenuItem("Wave Prototype/Build Batch 19 Windows")]
+        public static void BuildBatch19()
+        {
+            try
+            {
+                RunValidation();
+                EnsureScene();
+                string output = Path.GetFullPath("Builds/Batch19/TacticalSailingBatch19.exe");
+                Directory.CreateDirectory(Path.GetDirectoryName(output));
+                var options = new BuildPlayerOptions
+                {
+                    scenes = new[] { ScenePath },
+                    locationPathName = output,
+                    target = BuildTarget.StandaloneWindows64,
+                    options = BuildOptions.StrictMode
+                };
+                var report = BuildPipeline.BuildPlayer(options);
+                if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
+                    throw new InvalidOperationException("Windows build failed: " + report.summary.result);
+                Debug.Log($"[WAVE-BUILD] SUCCESS batch=19: {output} ({report.summary.totalSize:N0} bytes, {report.summary.totalTime})");
+            }
+            catch (Exception exception)
+            {
+                Debug.LogException(exception);
+                if (Application.isBatchMode) EditorApplication.Exit(1);
+                throw;
+            }
+        }
+
         // Kept as a stable command-line alias for existing automation.
-        public static void BuildWindows() => BuildBatch18();
+        public static void BuildWindows() => BuildBatch19();
 
         private static void EnsureScene()
         {

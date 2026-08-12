@@ -1,7 +1,7 @@
 # Codex Working Context
 
 This is a compact working reference, not the human developer manual. Current baseline:
-Batch 18 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
+Batch 19 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
 
 ## Non-negotiable rules
 
@@ -32,6 +32,12 @@ Batch 18 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
   can authorize the northern source as a five-phase event without perturbing the carrier.
 - Cross-sea defaults: manual start, 24s build, 60s established, 20s departure, then natural
   drain. Emission scale begins at 0.55; the source keeps its resolved 4.2-6.2s period.
+- Directional cross-seas derive a true upstream corner and phase plane from direction plus
+  world bounds. Northern entry is northwest; southern entry is southwest.
+- Off-map crest sections use `WaveState.PendingEntry`: deterministic motion only, with no
+  render, environment sampling, decay, breaking, foam, spatial indexing, force, or density.
+  They remain inactive to downstream systems; boundary-aware propagation is enabled only
+  after a directional system exists, leaving the normal-ocean hot path unchanged.
 - Partial breaking transfers coherent loss to non-force foam and can resume traveling.
 - Three initial arcade-skiff boats, optional target, 48 initial cargo/wreckage objects.
 - Rock radii at seed 1847 are 0.80–2.86 (1.44 average). Follow-camera zoom spans 10.5–96;
@@ -67,11 +73,18 @@ Batch 18 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
   probe: 8.88ms average / 12.60ms p99 with 15,467 dynamic vertices.
 - The long-transit regression front reaches the near eastern shelf at tick 4,803 with 0.187
   energy and expires after terrain contact at tick 5,138.
-- Batch 18 focused profile: 58.4-degree crossing; four fronts at exact 157-tick cadence;
-  completion tick 1,565; 785 local-overlap ticks; repeat uses fresh system identity. Western
-  clock matched a no-event control for all 1,565 ticks.
-- Batch 18 packaged active-event frame probe: 8.35ms average / 8.52ms p99, 15,483 dynamic
-  vertices, and no repeated moving frames.
+- Batch 19 focused profile: north entry `(-225,125)`, upstream center `(-118.20,191.07)`,
+  first emission/entry ticks 80/97, 38/0 pending/entered and zero interior at emission,
+  complete drain tick 2,109, 782 local-overlap ticks, and exact 157-tick cadence. Western
+  source clock matched its no-event control throughout.
+- Batch 19 packaged stress: 1,000 fronts over 900 ticks in 28.359s CPU (31.7 ticks/s), below the
+  30-second primary target. Thermal calibration uses the independently gated 320-front run
+  and can never raise the stress ceiling above 34s. The 10,000-front enlarged-world
+  diagnostic took 23.703s CPU for 30 ticks.
+- Batch 19 packaged smoke passed with 40 pending sections after the first boundary phase.
+  Representative active-event frame probe: 9.24ms average / 16.64ms p99, 14,895 dynamic
+  vertices, and no repeated moving frames. An earlier sample contained desktop scheduling
+  spikes and is retained only in the ignored player log.
 - Land and waves use representative hull samples; rocks still use swept profile circles rather
   than oriented hull polygons.
 - Same-build/platform determinism only; replay contains boat controls, not debug operations.
@@ -79,16 +92,20 @@ Batch 18 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
 ## Commands
 
 Validation execute method: `WavePrototype.Editor.BatchBuild.Validate`.
-Current build execute method: `WavePrototype.Editor.BatchBuild.BuildBatch18`.
+Current build execute method: `WavePrototype.Editor.BatchBuild.BuildBatch19`.
 Player modes: `-smoketest`, `-frametest`, `-capturepreview`.
 
 ## Roadmap
 
-1. Playtest and tune Batch 18 crossing-system readability and force consequences.
-2. Batch 19 candidate: a narrow sea-state director using proven carrier/event vocabulary,
-   without committing to a full weather simulation.
-3. Later vessel pass: more profiles only after the two-hull playtest establishes useful scale.
+1. Playtest Batch 19 boundary entry and Batch 18 crossing-system force/readability.
+2. Batch 20: large-vessel foundation without naval gameplay, weapons, crew, or progression.
+3. Batch 21: Unity world-authoring foundation for developers—assets, bounds, source gates,
+   shelf/island/rock-region handles, gizmos, deterministic preview, and validation. Do not
+   author new encounter regions as part of the tooling batch.
 4. Product gate: deeper environmental sandbox or minimal cargo/damage/landmark game.
+
+Sea-state direction/orchestration is deferred as game mechanics. Additional level design is
+deferred until the Unity authoring workflow is intentionally scheduled and built.
 
 The human developer manual was intentionally removed from the workspace after archival in
 Git commit `7172c9c`. Use source, focused batch records, and this compact context for current

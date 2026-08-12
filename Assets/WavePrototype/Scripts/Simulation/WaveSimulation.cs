@@ -105,6 +105,21 @@ namespace WavePrototype.Simulation
                 return count;
             }
         }
+        public int PendingWaveSegmentCount
+        {
+            get
+            {
+                int count = 0;
+                for (int i = 0; i < waves.Count; i++)
+                {
+                    WaveSegmentData[] segments = waves[i].MutableSegments;
+                    if (segments == null) continue;
+                    for (int segment = 0; segment < segments.Length; segment++)
+                        if (segments[segment].State == WaveState.PendingEntry) count++;
+                }
+                return count;
+            }
+        }
 
         public WaveSimulation(int seed, SimulationConfig config = null,
             IOceanEnvironmentFactory environmentFactory = null)
@@ -488,6 +503,7 @@ namespace WavePrototype.Simulation
                     WaveSourceData source = WaveSources[i];
                     Mix(ref hash, (uint)source.Id);
                     Mix(ref hash, (uint)source.Kind);
+                    Mix(ref hash, (uint)source.EntryMode);
                     Mix(ref hash, source.Enabled ? 1u : 0u);
                     MixVector(ref hash, source.SegmentStart);
                     MixVector(ref hash, source.SegmentEnd);
@@ -514,6 +530,8 @@ namespace WavePrototype.Simulation
                     Mix(ref hash, (uint)system.Id);
                     Mix(ref hash, (uint)system.SourceId);
                     MixVector(ref hash, system.Direction);
+                    MixVector(ref hash, system.BoundaryEntryPoint);
+                    MixVector(ref hash, system.EmissionCenter);
                     MixFloat(ref hash, system.BaseEnergy);
                     MixFloat(ref hash, system.PacketSpacing);
                     MixFloat(ref hash, system.MeanPacketLength);
@@ -523,6 +541,7 @@ namespace WavePrototype.Simulation
                     Mix(ref hash, (uint)system.EmittedPacketCount);
                     Mix(ref hash, (uint)system.ActivePacketCount);
                     Mix64(ref hash, system.BornTick);
+                    Mix(ref hash, system.UsesDirectionalBoundaryEntry ? 1u : 0u);
                 }
 
                 for (int i = 0; i < waves.Count; i++)

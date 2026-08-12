@@ -5,8 +5,9 @@ using UnityEngine;
 
 namespace WavePrototype.Simulation
 {
-    public enum WaveState : byte { Traveling, Breaking, Spent }
+    public enum WaveState : byte { Traveling, Breaking, Spent, PendingEntry }
     public enum WaveSourceKind : byte { WesternSwell, NorthernCrossSea, SouthernCrossSea }
+    public enum WaveSourceEntryMode : byte { BoundarySegment, DirectionalCorner }
     public enum CrossSeaEventPhase : byte { Inactive, Building, Established, Departing, Draining }
     public enum FloatingObjectKind : byte { Cargo, Wreckage }
     public enum SimulationEventType : byte
@@ -111,6 +112,7 @@ namespace WavePrototype.Simulation
     {
         public int Id;
         public WaveSourceKind Kind;
+        public WaveSourceEntryMode EntryMode;
         public bool Enabled;
         public Vector2 SegmentStart;
         public Vector2 SegmentEnd;
@@ -137,6 +139,8 @@ namespace WavePrototype.Simulation
         public int Id;
         public int SourceId;
         public Vector2 Direction;
+        public Vector2 BoundaryEntryPoint;
+        public Vector2 EmissionCenter;
         public float BaseEnergy;
         public float PacketSpacing;
         public float MeanPacketLength;
@@ -146,6 +150,7 @@ namespace WavePrototype.Simulation
         public int EmittedPacketCount;
         public int ActivePacketCount;
         public ulong BornTick;
+        public bool UsesDirectionalBoundaryEntry;
     }
 
     [Serializable]

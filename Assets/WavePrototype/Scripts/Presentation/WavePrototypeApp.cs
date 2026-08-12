@@ -71,7 +71,7 @@ namespace WavePrototype.Presentation
                     Application.Quit(1);
                     return;
                 }
-                Debug.Log($"[WAVE-SMOKE] PASS batch=18 ticks={simulation.Tick} waves={simulation.Waves.Count}/{simulation.InitialWaveTarget} segments={simulation.ActiveWaveSegmentCount}/{simulation.TotalWaveSegmentCount} systems={simulation.SwellSystems.Count} sources={simulation.ActiveWaveSourceCount}/{simulation.WaveSources.Count} cross={simulation.CrossSeaEvent.Phase}/{simulation.CrossSeaEvent.EmittedPacketCount}/{simulation.CrossSeaEvent.ActivePacketCount} objects={simulation.FloatingObjects.Count} salvage={simulation.CollectedSalvageCount}/{simulation.CollectedSalvageValue:0} rocks={simulation.Environment.Rocks.Count} visits={simulation.Target.VisitCount} profile={simulation.Boats[0].Profile} spatial={spatial.WaveBoatExactChecks}/{spatial.WaveBoatPotentialChecks} hash={simulation.CalculateStateHash():X16}");
+                Debug.Log($"[WAVE-SMOKE] PASS batch=19 ticks={simulation.Tick} waves={simulation.Waves.Count}/{simulation.InitialWaveTarget} segments={simulation.ActiveWaveSegmentCount}/{simulation.TotalWaveSegmentCount} pending={simulation.PendingWaveSegmentCount} systems={simulation.SwellSystems.Count} sources={simulation.ActiveWaveSourceCount}/{simulation.WaveSources.Count} cross={simulation.CrossSeaEvent.Phase}/{simulation.CrossSeaEvent.EmittedPacketCount}/{simulation.CrossSeaEvent.ActivePacketCount} objects={simulation.FloatingObjects.Count} salvage={simulation.CollectedSalvageCount}/{simulation.CollectedSalvageValue:0} rocks={simulation.Environment.Rocks.Count} visits={simulation.Target.VisitCount} profile={simulation.Boats[0].Profile} spatial={spatial.WaveBoatExactChecks}/{spatial.WaveBoatPotentialChecks} hash={simulation.CalculateStateHash():X16}");
                 Application.Quit(0);
             }
             else if (Array.Exists(arguments, value => string.Equals(value, "-capturepreview", StringComparison.OrdinalIgnoreCase)))
@@ -89,13 +89,15 @@ namespace WavePrototype.Presentation
             automatedTestDrive = true;
             for (int i = 0; i < 90; i++) yield return null;
             string buildDirectory = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
-            CaptureCamera(Path.Combine(buildDirectory, "Batch18-preview.png"));
+            CaptureCamera(Path.Combine(buildDirectory, "Batch19-preview.png"));
             simulation.SetBoatProfile(simulation.PlayerBoatId, VesselProfileId.HeavyCutter);
             InitializeSnapshots();
             yield return null;
-            CaptureCamera(Path.Combine(buildDirectory, "Batch18-heavy-preview.png"));
+            CaptureCamera(Path.Combine(buildDirectory, "Batch19-heavy-preview.png"));
             simulation.TriggerCrossSeaEvent();
-            for (int tick = 0; tick < 900; tick++) simulation.Step();
+            // Capture the first phase while it is still growing through the northwest
+            // boundary, rather than a later fully established cross-sea.
+            for (int tick = 0; tick < 180; tick++) simulation.Step();
             InitializeSnapshots();
             oceanRenderer.BuildDynamic(1f, true, showTargetBearing);
             yield return null;
@@ -103,10 +105,10 @@ namespace WavePrototype.Presentation
             float previousSize = worldCamera.orthographicSize;
             worldCamera.transform.position = new Vector3(0f, 0f, -10f);
             worldCamera.orthographicSize = cameraController.GetMapViewSize();
-            CaptureCamera(Path.Combine(buildDirectory, "Batch18-map-preview.png"));
+            CaptureCamera(Path.Combine(buildDirectory, "Batch19-map-preview.png"));
             worldCamera.transform.position = previousPosition;
             worldCamera.orthographicSize = previousSize;
-            Debug.Log("[WAVE-PREVIEW] Captured Batch 18 skiff, heavy, and cross-sea map previews in " + buildDirectory);
+            Debug.Log("[WAVE-PREVIEW] Captured Batch 19 skiff, heavy, and boundary-entry map previews in " + buildDirectory);
             Application.Quit(0);
         }
 
@@ -148,7 +150,7 @@ namespace WavePrototype.Presentation
             float average = total / measuredFrames;
             float p99 = samples[Mathf.Clamp(Mathf.CeilToInt(measuredFrames * 0.99f) - 1, 0, measuredFrames - 1)];
             float maximum = samples[measuredFrames - 1];
-            Debug.Log($"[WAVE-FRAME] batch=18 frames={measuredFrames} avgMs={average:0.00} p99Ms={p99:0.00} maxMs={maximum:0.00} gen0={gen0Collections} heapDelta={heapAfter - heapBefore} movingRepeats={repeatedMovingFrames} maxBoatStep={maximumRenderedStep:0.000} finalSpeed={renderedPlayer.Velocity.magnitude:0.00} cross={simulation.CrossSeaEvent.Phase}/{simulation.CrossSeaEvent.EmittedPacketCount}/{simulation.CrossSeaEvent.ActivePacketCount} staticVerts={oceanRenderer.StaticVertexCount} dynamicVerts={oceanRenderer.DynamicVertexCount}");
+            Debug.Log($"[WAVE-FRAME] batch=19 frames={measuredFrames} avgMs={average:0.00} p99Ms={p99:0.00} maxMs={maximum:0.00} gen0={gen0Collections} heapDelta={heapAfter - heapBefore} movingRepeats={repeatedMovingFrames} maxBoatStep={maximumRenderedStep:0.000} finalSpeed={renderedPlayer.Velocity.magnitude:0.00} cross={simulation.CrossSeaEvent.Phase}/{simulation.CrossSeaEvent.EmittedPacketCount}/{simulation.CrossSeaEvent.ActivePacketCount} pending={simulation.PendingWaveSegmentCount} staticVerts={oceanRenderer.StaticVertexCount} dynamicVerts={oceanRenderer.DynamicVertexCount}");
             Application.Quit(0);
         }
 
@@ -482,8 +484,8 @@ namespace WavePrototype.Presentation
             }
 
             GUILayout.BeginArea(new Rect(16, 16, 380, debugOverlay ? 940 : 800), boxStyle);
-            GUILayout.Label("TACTICAL SAILING // BATCH 16", titleStyle);
-            GUILayout.Label("Long-range ocean continuity laboratory", smallStyle);
+            GUILayout.Label("TACTICAL SAILING // BATCH 19", titleStyle);
+            GUILayout.Label("True-boundary swell entry laboratory", smallStyle);
             GUILayout.Space(9);
             GUILayout.Label(paused ? "PAUSED" : "UNDERWAY", valueStyle);
             GUILayout.Label($"Vessel       {VesselProfiles.GetLabel(player.Profile)}", valueStyle);
@@ -551,7 +553,7 @@ namespace WavePrototype.Presentation
                 ? $"TARGET {targetDistance:0} away   VISITS {target.VisitCount}   RADIUS {target.VisitRadius:0}"
                 : $"TARGET OFF   VISITS {target.VisitCount}", smallStyle);
             GUILayout.Label($"FLOATING {simulation.FloatingObjects.Count}   SALVAGE {simulation.CollectedSalvageCount} / {simulation.CollectedSalvageValue:0} value", smallStyle);
-            GUILayout.Label($"SEGMENTS {simulation.ActiveWaveSegmentCount}/{simulation.TotalWaveSegmentCount}   BREAK {breaking} / FOAM {foam}", smallStyle);
+            GUILayout.Label($"SEGMENTS {simulation.ActiveWaveSegmentCount}/{simulation.TotalWaveSegmentCount}   PENDING {simulation.PendingWaveSegmentCount}   BREAK {breaking} / FOAM {foam}", smallStyle);
             GUILayout.Label($"SOURCES {simulation.ActiveWaveSourceCount}/{simulation.WaveSources.Count} active   ROCKS {simulation.Environment.Rocks.Count}", smallStyle);
             GUILayout.Label($"CROSS-SEA {crossSea.Phase.ToString().ToUpperInvariant()}   {crossSea.Intensity * 100f:0}%   {crossSea.ActivePacketCount}/{crossSea.EmittedPacketCount} active/emitted", smallStyle);
             GUILayout.Label($"SEED {selectedSeed}   TICK {simulation.Tick:N0}", smallStyle);

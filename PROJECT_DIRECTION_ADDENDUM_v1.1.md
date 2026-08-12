@@ -71,6 +71,11 @@ The environment is the central gameplay system. Waves, bathymetry, islands, reef
 - Inventory, cargo economy, progression, ports, forts, combat, AI, full weather simulation,
   multiplayer, networking, saving, audio, wakes, reflections, and production UI remain
   outside the current architecture pass.
+- A sea-state director that schedules storms or gives them player-facing meaning is deferred.
+  Batch 18's event lifecycle remains a simulation/debug primitive until a game direction
+  justifies orchestration.
+- Additional authored regions and environmental encounters are deferred until a dedicated
+  Unity world-authoring workflow exists.
 
 ## Current engineering priorities
 
@@ -116,6 +121,10 @@ The environment is the central gameplay system. Waves, bathymetry, islands, reef
     Its build, established, departure, and drain phases are authoritative and repeatable;
     starting it is an explicit debug/scenario action, not ambient randomness or a new sailing
     control. Playtesting this crossing sea precedes any generalized sea-state director.
+14. Batch 19 corrects diagonal source geometry. Directional systems resolve the upstream
+    world corner and keep off-map crest sections in a mechanically inert pending-entry state
+    until each trajectory crosses the boundary. The western carrier, map, islands, shelves,
+    event cadence, and player controls remain unchanged.
 
 ## Architectural principles retained from v1.0
 
@@ -138,3 +147,8 @@ After stabilization, architecture consolidation, and ocean-coherence work, choos
 2. A minimally structured game using cargo, damage consequences, and landmark navigation.
 
 Neither path is implied by this addendum, and neither should begin by adding extra player controls.
+
+Before either path grows into additional authored regions, establish a developer-facing Unity
+world-authoring foundation for bounds, islands, shelves, source gates, rock-density regions,
+safe spawn regions, gizmos, deterministic preview, and validation. Building that workflow is
+engine/tooling work; using it to design a world is a later, deliberate phase.

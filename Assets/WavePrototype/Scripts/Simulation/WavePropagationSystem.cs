@@ -29,6 +29,12 @@ namespace WavePrototype.Simulation
         public void Decide(IReadOnlyList<WaveData> waves, List<WaveDecision> decisions,
             List<SimulationEvent> pendingEvents, ulong tick)
         {
+            if (sourceSystem.HasDirectionalBoundarySystems)
+            {
+                DecideBoundaryAware(waves, decisions, pendingEvents, tick);
+                return;
+            }
+
             while (decisions.Count < waves.Count) decisions.Add(default);
             if (decisions.Count > waves.Count)
                 decisions.RemoveRange(waves.Count, decisions.Count - waves.Count);
@@ -55,6 +61,56 @@ namespace WavePrototype.Simulation
 
                 ApplyCoherence(wave, ref decision);
                 AggregateWaveDecision(wave, ref decision);
+                decisions[waveIndex] = decision;
+            }
+        }
+
+        private void DecideBoundaryAware(IReadOnlyList<WaveData> waves,
+            List<WaveDecision> decisions, List<SimulationEvent> pendingEvents, ulong tick)
+        {
+            while (decisions.Count < waves.Count) decisions.Add(default);
+            if (decisions.Count > waves.Count)
+                decisions.RemoveRange(waves.Count, decisions.Count - waves.Count);
+
+            for (int waveIndex = 0; waveIndex < waves.Count; waveIndex++)
+            {
+                WaveData wave = waves[waveIndex];
+                WaveSegmentData[] segments = wave.MutableSegments;
+                WaveDecision decision = decisions[waveIndex];
+                int segmentCount = segments == null ? 0 : segments.Length;
+                if (decision.WaveId != wave.Id || decision.Segments == null ||
+                    decision.Segments.Length != segmentCount)
+                {
+                    decision.WaveId = wave.Id;
+                    decision.Segments = new WaveSegmentDecision[segmentCount];
+                }
+
+                float deepWaterCruiseSpeed = sourceSystem.DeepWaterCruiseSpeed(wave.PacketLength);
+                if (wave.State == WaveState.PendingEntry)
+                {
+                    for (int segmentIndex = 0; segmentIndex < segmentCount; segmentIndex++)
+                    {
+                        WaveSegmentData segment = segments[segmentIndex];
+                        decision.Segments[segmentIndex] = segment.State == WaveState.PendingEntry
+                            ? DecidePendingEntry(wave, segment, deepWaterCruiseSpeed)
+                            : DecideSegment(wave, segment, deepWaterCruiseSpeed,
+                                pendingEvents, tick);
+                    }
+                }
+                else
+                {
+                    for (int segmentIndex = 0; segmentIndex < segmentCount; segmentIndex++)
+                    {
+                        decision.Segments[segmentIndex] = DecideSegment(wave,
+                            segments[segmentIndex], deepWaterCruiseSpeed, pendingEvents, tick);
+                    }
+                }
+
+                ApplyCoherence(wave, ref decision);
+                if (wave.State == WaveState.PendingEntry)
+                    AggregateBoundaryWaveDecision(wave, ref decision);
+                else
+                    AggregateWaveDecision(wave, ref decision);
                 decisions[waveIndex] = decision;
             }
         }
@@ -227,6 +283,55 @@ namespace WavePrototype.Simulation
             };
         }
 
+        private WaveSegmentDecision DecidePendingEntry(WaveData wave,
+            WaveSegmentData segment, float deepWaterCruiseSpeed)
+        {
+            Vector2 direction = segment.TravelDirection.sqrMagnitude < 0.0001f
+                ? wave.TravelDirection.normalized : segment.TravelDirection.normalized;
+            float speed = deepWaterCruiseSpeed;
+            Vector2 nextPosition = segment.Position + direction * speed * config.FixedDeltaTime;
+            Vector2 half = config.WorldHalfExtents;
+            bool entered = Mathf.Abs(nextPosition.x) <= half.x &&
+                           Mathf.Abs(nextPosition.y) <= half.y;
+            if (!entered)
+            {
+                return new WaveSegmentDecision
+                {
+                    Position = nextPosition,
+                    Direction = direction,
+                    CoherentDirection = direction,
+                    Speed = speed,
+                    Energy = segment.Energy,
+                    SampledDepth = segment.SampledDepth,
+                    DepthGradient = Vector2.zero,
+                    BreakingIntensity = 0f,
+                    FoamEnergy = 0f,
+                    InteractionForce = 0f,
+                    State = WaveState.PendingEntry,
+                    Active = false
+                };
+            }
+
+            float sampledDepth = environment.SampleDepth(nextPosition);
+            float effectiveDepth = WaveDerived.EffectiveDepth(sampledDepth, wave.PacketLength);
+            return new WaveSegmentDecision
+            {
+                Position = nextPosition,
+                Direction = direction,
+                CoherentDirection = direction,
+                Speed = speed,
+                Energy = segment.Energy,
+                SampledDepth = sampledDepth,
+                DepthGradient = sampledDepth < 6.5f
+                    ? environment.SampleDepthGradient(nextPosition) : Vector2.zero,
+                BreakingIntensity = 0f,
+                FoamEnergy = 0f,
+                InteractionForce = segment.Energy * (1f + 0.7f / effectiveDepth),
+                State = WaveState.Traveling,
+                Active = true
+            };
+        }
+
         private static float BreakingSeverity(float value, float threshold)
         {
             if (value < threshold) return 0f;
@@ -351,6 +456,66 @@ namespace WavePrototype.Simulation
                 decision.InteractionForce = 0f;
                 decision.State = WaveState.Spent;
             }
+        }
+
+        private void AggregateBoundaryWaveDecision(WaveData wave, ref WaveDecision decision)
+        {
+            Vector2 position = Vector2.zero;
+            Vector2 direction = Vector2.zero;
+            float energy = 0f;
+            float speed = 0f;
+            float force = 0f;
+            int live = 0;
+            int entered = 0;
+            bool anyPending = false;
+            bool anyTraveling = false;
+            bool anyBreaking = false;
+            WaveSegmentDecision[] segments = decision.Segments;
+            for (int index = 0; index < segments.Length; index++)
+            {
+                WaveSegmentDecision segment = segments[index];
+                if (segment.State == WaveState.PendingEntry)
+                {
+                    anyPending = true;
+                    live++;
+                    continue;
+                }
+                if (!segment.Active) continue;
+                position += segment.Position;
+                direction += segment.Direction;
+                energy += segment.Energy;
+                speed += segment.Speed;
+                force += segment.InteractionForce;
+                live++;
+                entered++;
+                anyTraveling |= segment.State == WaveState.Traveling;
+                anyBreaking |= segment.State == WaveState.Breaking;
+            }
+
+            decision.ActiveSegmentCount = live;
+            int minimumCoherentSegments = Mathf.Max(1,
+                Mathf.CeilToInt(segments.Length * config.WaveMinimumActiveSegmentFraction));
+            decision.Expired = live < minimumCoherentSegments;
+            if (entered > 0)
+            {
+                decision.Position = position / entered;
+                decision.Direction = direction.sqrMagnitude > 0.0001f
+                    ? direction.normalized : wave.TravelDirection;
+                decision.Energy = energy / entered;
+                decision.Speed = speed / entered;
+                decision.InteractionForce = force / entered;
+            }
+            else
+            {
+                decision.Position = wave.Position;
+                decision.Direction = wave.TravelDirection;
+                decision.Energy = wave.Energy;
+                decision.Speed = wave.Speed;
+                decision.InteractionForce = 0f;
+            }
+            decision.State = anyPending ? WaveState.PendingEntry
+                : anyTraveling ? WaveState.Traveling
+                : anyBreaking ? WaveState.Breaking : WaveState.Spent;
         }
     }
 }

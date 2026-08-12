@@ -1,12 +1,13 @@
-# Tactical Sailing - Ordered Cross-Sea Event (Batch 18)
+# Tactical Sailing - True Boundary Entry (Batch 19)
 
-Batch 18 keeps the established 1350 x 500 carrier ocean and adds one bounded, ordered
-cross-sea event. A deterministic northern swell can build across the persistent western
-carrier, hold, depart, and drain naturally without replacing or perturbing the normal source.
+Batch 19 corrects how diagonal swell enters the established 1350 x 500 ocean. The northern
+cross-sea now begins on its upstream phase plane at the northwest map corner instead of
+materializing across the interior between islands. Off-map crest sections remain pending and
+mechanically inert until they cross a real world boundary.
 
 ## Run the latest build
 
-Open `Builds/Batch18/TacticalSailingBatch18.exe` and keep the complete `Batch18` directory
+Open `Builds/Batch19/TacticalSailingBatch19.exe` and keep the complete `Batch19` directory
 together. Earlier batch builds remain preserved.
 
 The source project targets Unity `6000.3.2f1`. Open
@@ -39,22 +40,23 @@ The source project targets Unity `6000.3.2f1`. Open
 The `Y` switch and the vessel-spawn controls are comparison tools, not proposed gameplay
 actions. With `F3` enabled, orange points show each vessel's authoritative hull samples.
 
-## Batch 18 changes
+## Batch 19 changes
 
-- Adds an authoritative five-phase cross-sea lifecycle: build, established, departure, drain,
-  and inactive.
-- Temporarily authorizes the dormant northern source at roughly 58 degrees to the carrier.
-- Uses that source's own fixed 4.2-6.2 second period; population never triggers a replacement.
-- Leaves emitted fronts in the normal propagation, shelf, breaking, boat, rock, and debris
-  systems until their natural lifetime ends.
-- Creates fresh swell-system identity for each repeatable event and hashes all lifecycle state.
-- Keeps the western carrier clock and phase-shape sequence isolated from event emissions.
-- Adds `N`, a panel button, lifecycle status, and existing purple source diagnostics.
-- Preserves Batch 17's world, shoreline continuity, larger rocks, camera range, and density.
+- Derives diagonal entry from the source direction and rectangular world bounds.
+- Starts the northern cross-sea at the northwest upstream corner; the dormant southern source
+  resolves to the southwest corner.
+- Places the complete finite crest on the upstream phase plane, outside the interior.
+- Adds an authoritative `PendingEntry` section state. Pending sections move deterministically
+  but do not render, collide, push objects or boats, sample terrain, break, foam, or decay.
+- Activates each section only after its own trajectory crosses the map boundary.
+- Keeps the parent front alive while sections await entry and while entered sections drain.
+- Shows the source edge, true entry point, upstream crest plane, and pending-section count in
+  diagnostics.
+- Preserves Batch 18's bounded cross-sea lifecycle and unchanged western carrier clock.
 
 ## Validation summary
 
-Reference editor validation passed on 2026-08-11:
+Reference editor validation passed on 2026-08-12:
 
 - deterministic reference run: 900/900 matching ticks;
 - derived reference/prior/current phases: `19 / 39 / 59` at identical `22.71`-unit spacing;
@@ -64,24 +66,31 @@ Reference editor validation passed on 2026-08-11:
 - average expanded crest: `520.22` units with 40-section capacity;
 - nominal width crossing: `108.0` seconds;
 - boundary-to-shelf continuity: tick `4,803`, energy `0.187`, expiration tick `5,138`;
-- cross-sea short profile: four emitted / four peak-active fronts, draining at tick `1,565`;
+- cross-sea short profile: four emitted / four peak-active fronts, draining at tick `2,109`;
 - event angle/cadence: `58.4` degrees and exactly `157` ticks;
-- carrier isolation: `1,565 / 1,565` clock-matching ticks;
-- local two-system overlap: `785` ticks;
-- deterministic final hash: `4444658FDCC6EDB4`;
-- 1,000-front stress rate: approximately `58` ticks/second;
-- 10,000-front diagnostic: approximately `2.4` ticks/second for 30 ticks;
-- packaged active-event frame probe: `8.35ms` average / `8.52ms` p99 with no
-  repeated moving frames; and
+- carrier isolation: `2,109 / 2,109` clock-matching ticks;
+- local two-system overlap: `782` ticks;
+- boundary entry: `(-225, 125)` in the focused basin, with the crest center outside at
+  `(-118.20, 191.07)`;
+- first event emission/entry: ticks `80 / 97`, with `38 / 0` pending/entered sections and
+  zero interior sections at emission;
+- pending energy, breaking, and foam remained unchanged before entry; and
+- packaged-build 1,000-front stress: 900 ticks in `28.359s` CPU (`31.7` ticks/s), below the 30-second
+  primary target; the load-calibrated gate has a fixed 34-second hard ceiling;
+- 10,000-front enlarged-world diagnostic: 30 ticks in `23.703s` CPU;
+- packaged smoke test: pass at tick 120 with one cross-sea phase emitted and 40 sections
+  pending outside the map;
+- representative rendered frame sample: `9.24ms` average / `16.64ms` p99, zero repeated
+  moving frames, and 14,895 dynamic vertices; and
 - all prior wave, vessel, collision, replay, source, target, and object regressions passed.
 
-See `BATCH18_ORDERED_CROSS_SEA.md` for the focused design record and
+See `BATCH19_TRUE_BOUNDARY_ENTRY.md` for the focused design record and
 `Documentation/CODEX_PROJECT_CONTEXT.md` for the compact working context.
 
 Build from PowerShell:
 
 ```powershell
-& 'C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.com' -batchmode -nographics -projectPath . -executeMethod WavePrototype.Editor.BatchBuild.BuildBatch18 -quit -logFile build-batch18.log
+& 'C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.com' -batchmode -nographics -projectPath . -executeMethod WavePrototype.Editor.BatchBuild.BuildBatch19 -quit -logFile build-batch19.log
 ```
 
 The packaged player also accepts `-smoketest`, `-frametest`, and `-capturepreview`.
@@ -89,8 +98,7 @@ The preview mode writes separate skiff, heavy-cutter, and full-map PNGs beside t
 
 ## Playtest question
 
-Start the cross-sea with `N`, watch it develop in follow and map views, then sail through the
-overlap. Is the second direction readable as one ordered system rather than random clutter?
-Does the build feel substantial without overwhelming the carrier, and does the ocean visibly
-return to its former state after departure? An early second press of `N` also tests whether a
-shortened event still ends naturally.
+Start the cross-sea with `N` and watch the northwest map edge in follow and map views. The
+first diagonal sections should enter from the boundary and progressively lengthen across the
+ocean; no complete diagonal line should appear between the central islands. Then sail through
+the later overlap and confirm that it retains Batch 18's ordered two-system feel.
