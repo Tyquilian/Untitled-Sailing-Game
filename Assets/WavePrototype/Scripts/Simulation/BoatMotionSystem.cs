@@ -90,8 +90,8 @@ namespace WavePrototype.Simulation
                     decision.Position = boat.Position;
                     decision.Velocity *= -config.GroundingBounce;
                 }
-                else if (ResolveRockMotion(boat.Position, decision.Velocity, dt,
-                    profile.CollisionRadius, out Vector2 resolvedPosition,
+                else if (ResolveRockMotion(boat.Position, decision.Velocity,
+                    decision.Heading, dt, profile, out Vector2 resolvedPosition,
                     out Vector2 resolvedVelocity, out float impactDamage))
                 {
                     decision.Collision = SimulationEventType.BoatHitRock;
@@ -114,11 +114,31 @@ namespace WavePrototype.Simulation
             VesselProfileDefinition profile)
         {
             var boat = new BoatData { Position = position, Heading = heading };
-            int sampleCount = Mathf.Max(1, profile.HullSampleCount);
+            Vector2 half = config.WorldHalfExtents;
+            int sampleCount = profile.EffectiveHullSampleCount;
             for (int sample = 0; sample < sampleCount; sample++)
-                if (environment.IsLand(VesselProfiles.GetHullSampleWorldPosition(
-                        boat, profile, sample)))
+            {
+                Vector2 samplePosition = VesselProfiles.GetHullSampleWorldPosition(
+                    boat, profile, sample);
+                if (Mathf.Abs(samplePosition.x) > half.x ||
+                    Mathf.Abs(samplePosition.y) > half.y ||
+                    environment.IsLand(samplePosition))
                     return true;
+            }
+            return false;
+        }
+
+        public bool HullIntersectsRock(Vector2 position, float heading,
+            VesselProfileDefinition profile)
+        {
+            var boat = new BoatData { Position = position, Heading = heading };
+            for (int sample = 0; sample < profile.EffectiveHullSampleCount; sample++)
+            {
+                Vector2 samplePosition = VesselProfiles.GetHullSampleWorldPosition(
+                    boat, profile, sample);
+                if (environment.FindRock(samplePosition, profile.RockContactRadius) >= 0)
+                    return true;
+            }
             return false;
         }
 
@@ -132,15 +152,15 @@ namespace WavePrototype.Simulation
                     float radians = step * Mathf.PI * 2f / 16f;
                     Vector2 candidate = origin + new Vector2(Mathf.Cos(radians), Mathf.Sin(radians)) * ring;
                     if (!HullIntersectsLand(candidate, heading, profile) &&
-                        environment.FindRock(candidate, profile.CollisionRadius) < 0)
+                        !HullIntersectsRock(candidate, heading, profile))
                         return candidate;
                 }
             }
             return Vector2.zero;
         }
 
-        private bool ResolveRockMotion(Vector2 start, Vector2 initialVelocity, float dt,
-            float collisionRadius,
+        private bool ResolveRockMotion(Vector2 start, Vector2 initialVelocity, float heading,
+            float dt, VesselProfileDefinition profile,
             out Vector2 resolvedPosition, out Vector2 resolvedVelocity, out float damage)
         {
             const int maximumContacts = 4;
@@ -154,8 +174,8 @@ namespace WavePrototype.Simulation
             for (int contact = 0; contact < maximumContacts && remainingTime > minimumTime; contact++)
             {
                 Vector2 end = resolvedPosition + resolvedVelocity * remainingTime;
-                if (!TryFindEarliestRockHit(resolvedPosition, end, collisionRadius,
-                    out int rockIndex, out float hitFraction))
+                if (!TryFindEarliestRockHit(resolvedPosition, end, heading, profile,
+                    out int rockIndex, out int sampleIndex, out float hitFraction))
                 {
                     resolvedPosition = end;
                     break;
@@ -163,15 +183,17 @@ namespace WavePrototype.Simulation
 
                 RockData rock = environment.Rocks[rockIndex];
                 Vector2 segment = end - resolvedPosition;
-                Vector2 contactPoint = resolvedPosition + segment * hitFraction;
+                Vector2 sampleOffset = RotateHullOffset(profile.GetHullSampleOffset(sampleIndex),
+                    heading);
+                Vector2 centerContact = resolvedPosition + segment * hitFraction;
+                Vector2 contactPoint = centerContact + sampleOffset;
                 Vector2 normal = contactPoint - rock.Position;
                 if (normal.sqrMagnitude < 0.000001f)
                     normal = resolvedVelocity.sqrMagnitude > 0.000001f ? -resolvedVelocity.normalized : Vector2.right;
                 else
                     normal.Normalize();
 
-                float expandedRadius = rock.Radius + collisionRadius;
-                resolvedPosition = rock.Position + normal * (expandedRadius + config.RockContactSkin);
+                resolvedPosition = centerContact + normal * config.RockContactSkin;
                 float normalSpeed = Vector2.Dot(resolvedVelocity, normal);
                 float impactSpeed = Mathf.Max(0f, -normalSpeed);
                 Vector2 tangentVelocity = resolvedVelocity - normal * normalSpeed;
@@ -188,61 +210,81 @@ namespace WavePrototype.Simulation
             return hitAnyRock;
         }
 
-        private bool TryFindEarliestRockHit(Vector2 start, Vector2 end, float collisionRadius,
-            out int rockIndex, out float hitFraction)
+        private bool TryFindEarliestRockHit(Vector2 start, Vector2 end, float heading,
+            VesselProfileDefinition profile, out int rockIndex, out int sampleIndex,
+            out float hitFraction)
         {
             rockIndex = -1;
+            sampleIndex = -1;
             hitFraction = float.MaxValue;
             Vector2 segment = end - start;
             float segmentLengthSquared = segment.sqrMagnitude;
             if (segmentLengthSquared < 0.00000001f) return false;
 
             IReadOnlyList<RockData> rocks = environment.Rocks;
+            int sampleCount = profile.EffectiveHullSampleCount;
             RockQueryCount++;
-            RockPotentialChecks += rocks.Count;
+            RockPotentialChecks += rocks.Count * sampleCount;
             IRockSpatialQuery spatial = config.EnableSpatialBroadphase
                 ? environment as IRockSpatialQuery : null;
             bool useSpatial = spatial != null;
             if (useSpatial)
             {
-                float expansion = collisionRadius + spatial.MaximumRockRadius;
+                float expansion = profile.MaximumHullSampleDistance +
+                    profile.RockContactRadius + spatial.MaximumRockRadius;
                 Vector2 padding = Vector2.one * expansion;
                 spatial.QueryRockIndices(Vector2.Min(start, end) - padding,
                     Vector2.Max(start, end) + padding, rockCandidates);
             }
 
             int candidateCount = useSpatial ? rockCandidates.Count : rocks.Count;
-            for (int candidateIndex = 0; candidateIndex < candidateCount; candidateIndex++)
+            for (int sample = 0; sample < sampleCount; sample++)
             {
-                int i = useSpatial ? rockCandidates[candidateIndex] : candidateIndex;
-                RockCandidateChecks++;
-                RockData rock = rocks[i];
-                float expandedRadius = rock.Radius + collisionRadius;
-                Vector2 offset = start - rock.Position;
-                float distanceFromSurface = offset.sqrMagnitude - expandedRadius * expandedRadius;
-                float approach = Vector2.Dot(offset, segment);
-                float candidate;
-                if (distanceFromSurface <= 0f)
+                Vector2 hullOffset = RotateHullOffset(profile.GetHullSampleOffset(sample), heading);
+                Vector2 sampleStart = start + hullOffset;
+                for (int candidateIndex = 0; candidateIndex < candidateCount; candidateIndex++)
                 {
-                    if (approach >= 0f) continue;
-                    candidate = 0f;
-                }
-                else
-                {
-                    if (approach >= 0f) continue;
-                    float discriminant = approach * approach - segmentLengthSquared * distanceFromSurface;
-                    if (discriminant < 0f) continue;
-                    candidate = (-approach - Mathf.Sqrt(discriminant)) / segmentLengthSquared;
-                    if (candidate < 0f || candidate > 1f) continue;
-                }
+                    int i = useSpatial ? rockCandidates[candidateIndex] : candidateIndex;
+                    RockCandidateChecks++;
+                    RockData rock = rocks[i];
+                    float expandedRadius = rock.Radius + profile.RockContactRadius;
+                    Vector2 offset = sampleStart - rock.Position;
+                    float distanceFromSurface = offset.sqrMagnitude -
+                        expandedRadius * expandedRadius;
+                    float approach = Vector2.Dot(offset, segment);
+                    float candidate;
+                    if (distanceFromSurface <= 0f)
+                    {
+                        if (approach >= 0f) continue;
+                        candidate = 0f;
+                    }
+                    else
+                    {
+                        if (approach >= 0f) continue;
+                        float discriminant = approach * approach -
+                            segmentLengthSquared * distanceFromSurface;
+                        if (discriminant < 0f) continue;
+                        candidate = (-approach - Mathf.Sqrt(discriminant)) /
+                            segmentLengthSquared;
+                        if (candidate < 0f || candidate > 1f) continue;
+                    }
 
-                if (candidate < hitFraction)
-                {
-                    hitFraction = candidate;
-                    rockIndex = i;
+                    if (candidate < hitFraction)
+                    {
+                        hitFraction = candidate;
+                        rockIndex = i;
+                        sampleIndex = sample;
+                    }
                 }
             }
             return rockIndex >= 0;
+        }
+
+        private static Vector2 RotateHullOffset(Vector2 local, float heading)
+        {
+            Vector2 forward = SimulationMath.HeadingVector(heading);
+            Vector2 side = new Vector2(-forward.y, forward.x);
+            return forward * local.x + side * local.y;
         }
     }
 }

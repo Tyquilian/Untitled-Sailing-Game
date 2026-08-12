@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using WavePrototype.Simulation;
 
@@ -46,6 +47,48 @@ namespace WavePrototype.Editor
                 HeavyBreakingDamage = heavyBreakingDamage;
                 SkiffBreakingDisplacement = skiffBreakingDisplacement;
                 HeavyBreakingDisplacement = heavyBreakingDisplacement;
+                Deterministic = deterministic;
+            }
+        }
+
+        private readonly struct MerchantShipProbe
+        {
+            public readonly float Mass;
+            public readonly float Length;
+            public readonly float Beam;
+            public readonly int Samples;
+            public readonly float Speed;
+            public readonly float Turn;
+            public readonly int BroadWaveHits;
+            public readonly int CenterWaveHits;
+            public readonly int Groundings;
+            public readonly int RockHits;
+            public readonly int BowCargoCollections;
+            public readonly int SkiffCargoCollections;
+            public readonly float BreakingDamage;
+            public readonly float BreakingDisplacement;
+            public readonly bool Deterministic;
+
+            public MerchantShipProbe(float mass, float length, float beam, int samples,
+                float speed, float turn, int broadWaveHits, int centerWaveHits,
+                int groundings, int rockHits, int bowCargoCollections,
+                int skiffCargoCollections, float breakingDamage,
+                float breakingDisplacement, bool deterministic)
+            {
+                Mass = mass;
+                Length = length;
+                Beam = beam;
+                Samples = samples;
+                Speed = speed;
+                Turn = turn;
+                BroadWaveHits = broadWaveHits;
+                CenterWaveHits = centerWaveHits;
+                Groundings = groundings;
+                RockHits = rockHits;
+                BowCargoCollections = bowCargoCollections;
+                SkiffCargoCollections = skiffCargoCollections;
+                BreakingDamage = breakingDamage;
+                BreakingDisplacement = breakingDisplacement;
                 Deterministic = deterministic;
             }
         }
@@ -145,6 +188,99 @@ namespace WavePrototype.Editor
                 skiffDisplacement, heavyDisplacement, deterministic);
         }
 
+        private static MerchantShipProbe RunMerchantShipProbe()
+        {
+            VesselProfileDefinition profile = VesselProfileDefinition.MerchantShip;
+            var handling = CreateVesselProbe(VesselProfileId.MerchantShip, false);
+            for (int tick = 0; tick < 90; tick++)
+            {
+                handling.SetPlayerControl(1f, 0f);
+                handling.Step();
+            }
+            float speed = handling.Boats[0].Velocity.magnitude;
+            handling.ConfigureBoatForValidation(handling.PlayerBoatId,
+                new Vector2(-100f, -70f), Vector2.right * 5f, 0f);
+            for (int tick = 0; tick < 30; tick++)
+            {
+                handling.SetPlayerControl(0f, 1f);
+                handling.Step();
+            }
+            float turn = Mathf.Abs(Mathf.DeltaAngle(0f, handling.Boats[0].Heading));
+
+            var broad = CreateVesselProbe(VesselProfileId.MerchantShip, false);
+            broad.ConfigureBoatForValidation(broad.PlayerBoatId,
+                new Vector2(-8f, -70f), Vector2.zero, 0f);
+            broad.SpawnWaveForValidation(new Vector2(0f, -70f), Vector2.right,
+                0.7f, 3f, 60f);
+            broad.Step();
+            int broadHits = CountPlayerEvents(broad, SimulationEventType.WaveHitBoat);
+
+            var center = CreateVesselProbe(VesselProfileId.MerchantShip, false);
+            center.ConfigureBoatForValidation(center.PlayerBoatId,
+                new Vector2(0f, -70f), Vector2.zero, 0f);
+            center.SpawnWaveForValidation(new Vector2(0f, -70f), Vector2.right,
+                0.7f, 3f, 60f);
+            center.Step();
+            int centerHits = CountPlayerEvents(center, SimulationEventType.WaveHitBoat);
+
+            var ground = CreateVesselProbe(VesselProfileId.MerchantShip, true);
+            ground.ConfigureBoatForValidation(ground.PlayerBoatId,
+                new Vector2(-13f, 0f), Vector2.zero, 0f);
+            ground.Step();
+            int groundings = CountPlayerEvents(ground, SimulationEventType.BoatGrounded);
+
+            var rock = new WaveSimulation(8820, new SimulationConfig
+            {
+                TargetWaveCount = 0,
+                InitialFloatingObjectCount = 0
+            }, new SingleRockEnvironmentFactory(new RockData(new Vector2(1.3f, 0f), 0.7f)));
+            rock.SetBoatProfile(rock.PlayerBoatId, VesselProfileId.MerchantShip);
+            rock.ConfigureBoatForValidation(rock.PlayerBoatId,
+                new Vector2(-8f, 0f), Vector2.right * 6f, 0f);
+            rock.Step();
+            int rockHits = CountPlayerEvents(rock, SimulationEventType.BoatHitRock);
+
+            var merchantCargo = CreateVesselProbe(VesselProfileId.MerchantShip, false);
+            merchantCargo.ConfigureBoatForValidation(merchantCargo.PlayerBoatId,
+                Vector2.zero, Vector2.zero, 0f);
+            merchantCargo.SpawnFloatingObject(FloatingObjectKind.Cargo,
+                new Vector2(profile.HullLength * 0.46f, 0f));
+            merchantCargo.Step();
+            int merchantCollections = CountPlayerEvents(merchantCargo,
+                SimulationEventType.FloatingObjectCollected);
+
+            var skiffCargo = CreateVesselProbe(VesselProfileId.ArcadeSkiff, false);
+            skiffCargo.ConfigureBoatForValidation(skiffCargo.PlayerBoatId,
+                Vector2.zero, Vector2.zero, 0f);
+            skiffCargo.SpawnFloatingObject(FloatingObjectKind.Cargo,
+                new Vector2(profile.HullLength * 0.46f, 0f));
+            skiffCargo.Step();
+            int skiffCollections = CountPlayerEvents(skiffCargo,
+                SimulationEventType.FloatingObjectCollected);
+
+            RunVesselBreakingProbe(VesselProfileId.MerchantShip,
+                out float breakingDamage, out float breakingDisplacement);
+
+            var deterministicA = CreateVesselProbe(VesselProfileId.MerchantShip, false);
+            var deterministicB = CreateVesselProbe(VesselProfileId.MerchantShip, false);
+            bool deterministic = true;
+            for (int tick = 0; tick < 180; tick++)
+            {
+                float steering = Mathf.Sin(tick * 0.031f) * 0.82f;
+                deterministicA.SetPlayerControl(1f, steering);
+                deterministicB.SetPlayerControl(1f, steering);
+                deterministicA.Step();
+                deterministicB.Step();
+                deterministic &= deterministicA.CalculateStateHash() ==
+                    deterministicB.CalculateStateHash();
+            }
+
+            return new MerchantShipProbe(profile.Mass, profile.HullLength,
+                profile.HullBeam, profile.EffectiveHullSampleCount, speed, turn,
+                broadHits, centerHits, groundings, rockHits, merchantCollections,
+                skiffCollections, breakingDamage, breakingDisplacement, deterministic);
+        }
+
         private static WaveSimulation CreateVesselProbe(VesselProfileId profile, bool island)
         {
             var simulation = new WaveSimulation(8814, new SimulationConfig
@@ -168,6 +304,29 @@ namespace WavePrototype.Editor
             for (int tick = 0; tick < 24; tick++) simulation.Step();
             damage = 100f - simulation.Boats[0].Health;
             displacement = Vector2.Distance(start, simulation.Boats[0].Position);
+        }
+
+        private sealed class SingleRockEnvironmentFactory : IOceanEnvironmentFactory
+        {
+            private readonly RockData rock;
+            public SingleRockEnvironmentFactory(RockData rock) { this.rock = rock; }
+            public IOceanEnvironment Create(Vector2 worldHalfExtents, int seed)
+                => new SingleRockEnvironment(rock);
+        }
+
+        private sealed class SingleRockEnvironment : IOceanEnvironment
+        {
+            private readonly RockData[] rocks;
+            public IReadOnlyList<RockData> Rocks => rocks;
+            public SingleRockEnvironment(RockData rock) { rocks = new[] { rock }; }
+            public float SampleDepth(Vector2 position) => 12f;
+            public bool IsLand(Vector2 position) => false;
+            public Vector2 SampleDepthGradient(Vector2 position) => Vector2.zero;
+            public int FindRock(Vector2 position, float extraRadius)
+            {
+                float radius = rocks[0].Radius + extraRadius;
+                return (position - rocks[0].Position).sqrMagnitude <= radius * radius ? 0 : -1;
+            }
         }
     }
 }

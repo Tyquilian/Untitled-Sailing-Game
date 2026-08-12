@@ -98,7 +98,7 @@ namespace WavePrototype.Simulation
                             : wave.PacketLength * config.TravelingLongitudinalScale +
                               config.TravelingLongitudinalPadding;
                         float acrossRadius = segmentSpan * 0.62f + config.BoatInteractionRadius;
-                        int sampleCount = Mathf.Max(1, profile.HullSampleCount);
+                        int sampleCount = profile.EffectiveHullSampleCount;
                         for (int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
                         {
                             Vector2 samplePosition = VesselProfiles.GetHullSampleWorldPosition(

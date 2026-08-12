@@ -1,7 +1,7 @@
 # Codex Working Context
 
 This is a compact working reference, not the human developer manual. Current baseline:
-Batch 19 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
+Batch 20 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
 
 ## Non-negotiable rules
 
@@ -42,9 +42,14 @@ Batch 19 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
 - Three initial arcade-skiff boats, optional target, 48 initial cargo/wreckage objects.
 - Rock radii at seed 1847 are 0.80–2.86 (1.44 average). Follow-camera zoom spans 10.5–96;
   `M` remains full-map view.
-- Immutable arcade-skiff and heavy-cutter profiles. The skiff preserves Batch 13 values.
+- Immutable arcade-skiff, heavy-cutter, and merchant-ship profiles. The skiff preserves
+  Batch 13 values.
 - Heavy cutter: mass 24, 6.2 x 2.8 hull, 1.5 collision radius, five hull samples.
+- Merchant ship: mass 96, 16.5 x 5.2 hull, thirteen hull samples, and 0.92 local
+  rock/object radius. It uses the same arcade controls with slower propulsion and turning.
 - Wave and land checks use hull samples but still contribute once per crest/boat identity.
+- Rock, cargo, and wreckage contact use profile samples as well. Swept rock motion chooses
+  the earliest sample contact; it does not multiply one encounter by sample count.
 - A rebuilt-per-tick deterministic grid culls wave-section candidates for boats and floating
   objects. The static rock grid also serves swept boat contact. Exact equations and original
   wave/segment/rock ordering remain authoritative.
@@ -77,32 +82,29 @@ Batch 19 plus the post-Batch 13 architecture-hardening pass, Unity `6000.3.2f1`.
   first emission/entry ticks 80/97, 38/0 pending/entered and zero interior at emission,
   complete drain tick 2,109, 782 local-overlap ticks, and exact 157-tick cadence. Western
   source clock matched its no-event control throughout.
-- Batch 19 packaged stress: 1,000 fronts over 900 ticks in 28.359s CPU (31.7 ticks/s), below the
-  30-second primary target. Thermal calibration uses the independently gated 320-front run
-  and can never raise the stress ceiling above 34s. The 10,000-front enlarged-world
-  diagnostic took 23.703s CPU for 30 ticks.
-- Batch 19 packaged smoke passed with 40 pending sections after the first boundary phase.
-  Representative active-event frame probe: 9.24ms average / 16.64ms p99, 14,895 dynamic
-  vertices, and no repeated moving frames. An earlier sample contained desktop scheduling
-  spikes and is retained only in the ignored player log.
-- Land and waves use representative hull samples; rocks still use swept profile circles rather
-  than oriented hull polygons.
+- Batch 20 packaged stress: 1,000 fronts over 900 ticks in 28.938s CPU (31.1 ticks/s), below
+  the 30-second target. The thermal calibration has a 32s floor and a fixed 34s hard ceiling;
+  the 320-front run remains independently gated.
+- Batch 20 packaged merchant smoke passed with 40 pending sections after the first boundary
+  phase. Merchant frame probe: 8.80ms average / 13.04ms p99, 15,156 dynamic vertices, and no
+  repeated moving frames.
+- Land, waves, rocks, and floating objects use representative hull samples. Rocks use swept
+  sample circles rather than an oriented hull polygon.
 - Same-build/platform determinism only; replay contains boat controls, not debug operations.
 
 ## Commands
 
 Validation execute method: `WavePrototype.Editor.BatchBuild.Validate`.
-Current build execute method: `WavePrototype.Editor.BatchBuild.BuildBatch19`.
+Current build execute method: `WavePrototype.Editor.BatchBuild.BuildBatch20`.
 Player modes: `-smoketest`, `-frametest`, `-capturepreview`.
 
 ## Roadmap
 
-1. Playtest Batch 19 boundary entry and Batch 18 crossing-system force/readability.
-2. Batch 20: large-vessel foundation without naval gameplay, weapons, crew, or progression.
-3. Batch 21: Unity world-authoring foundation for developers—assets, bounds, source gates,
+1. Playtest Batch 20 merchant scale, inertia, navigation footprint, and sea response.
+2. Batch 21: Unity world-authoring foundation for developers—assets, bounds, source gates,
    shelf/island/rock-region handles, gizmos, deterministic preview, and validation. Do not
    author new encounter regions as part of the tooling batch.
-4. Product gate: deeper environmental sandbox or minimal cargo/damage/landmark game.
+3. Product gate: deeper environmental sandbox or minimal cargo/damage/landmark game.
 
 Sea-state direction/orchestration is deferred as game mechanics. Additional level design is
 deferred until the Unity authoring workflow is intentionally scheduled and built.

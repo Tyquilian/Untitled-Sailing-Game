@@ -1,13 +1,13 @@
-# Tactical Sailing - True Boundary Entry (Batch 19)
+# Tactical Sailing - Large-Vessel Foundation (Batch 20)
 
-Batch 19 corrects how diagonal swell enters the established 1350 x 500 ocean. The northern
-cross-sea now begins on its upstream phase plane at the northwest map corner instead of
-materializing across the interior between islands. Off-map crest sections remain pending and
-mechanically inert until they cross a real world boundary.
+Batch 20 adds a merchant-scale ship to the established 1350 x 500 ocean without adding naval
+gameplay. Its 16.5 x 5.2 hull uses thirteen representative samples for waves, land, rocks,
+cargo, and wreckage while retaining the same immediate sailing controls and one force
+contribution per crest identity.
 
 ## Run the latest build
 
-Open `Builds/Batch19/TacticalSailingBatch19.exe` and keep the complete `Batch19` directory
+Open `Builds/Batch20/TacticalSailingBatch20.exe` and keep the complete `Batch20` directory
 together. Earlier batch builds remain preserved.
 
 The source project targets Unity `6000.3.2f1`. Open
@@ -20,10 +20,11 @@ The source project targets Unity `6000.3.2f1`. Open
 | W / Up | Forward power |
 | S / Down | Brake and low-speed reverse |
 | A D / Left Right | Steer |
-| Y | Switch the player between skiff and heavy cutter (debug) |
+| Y | Cycle the player through skiff, cutter, and merchant (debug) |
 | N | Start the cross-sea / request its early departure |
 | B | Spawn an arcade skiff at the cursor |
 | Shift + B | Spawn a heavy cutter at the cursor |
+| Ctrl + B | Spawn a merchant ship at the cursor |
 | M | Full map / return to follow camera |
 | Mouse wheel | Follow-camera zoom |
 | Q | Spawn one natural-format segmented swell front at the cursor |
@@ -40,19 +41,18 @@ The source project targets Unity `6000.3.2f1`. Open
 The `Y` switch and the vessel-spawn controls are comparison tools, not proposed gameplay
 actions. With `F3` enabled, orange points show each vessel's authoritative hull samples.
 
-## Batch 19 changes
+## Batch 20 changes
 
-- Derives diagonal entry from the source direction and rectangular world bounds.
-- Starts the northern cross-sea at the northwest upstream corner; the dormant southern source
-  resolves to the southwest corner.
-- Places the complete finite crest on the upstream phase plane, outside the interior.
-- Adds an authoritative `PendingEntry` section state. Pending sections move deterministically
-  but do not render, collide, push objects or boats, sample terrain, break, foam, or decay.
-- Activates each section only after its own trajectory crosses the map boundary.
-- Keeps the parent front alive while sections await entry and while entered sections drain.
-- Shows the source edge, true entry point, upstream crest plane, and pending-section count in
-  diagnostics.
-- Preserves Batch 18's bounded cross-sea lifecycle and unchanged western carrier clock.
+- Adds the immutable `MerchantShip` profile: mass 96, hull 16.5 x 5.2, thirteen samples.
+- Extends sampled hull ownership to swept rock collision and cargo/wreckage contact.
+- Keeps one wave force, yaw, damage result, and event per crest/ship even when many hull
+  samples overlap the same front.
+- Gives the merchant slower acceleration, turn, surf, yaw, and damage response while keeping
+  the same arcade controls.
+- Adds a merchant-specific multi-triangle hull, two sail planes, sampled-footprint highlight,
+  and automatic follow-camera framing.
+- Exercises the largest hull in the spatial broadphase/brute-force determinism comparison.
+- Preserves Batch 19 boundary entry, the western carrier, map, bathymetry, rocks, and density.
 
 ## Validation summary
 
@@ -74,31 +74,38 @@ Reference editor validation passed on 2026-08-12:
   `(-118.20, 191.07)`;
 - first event emission/entry: ticks `80 / 97`, with `38 / 0` pending/entered sections and
   zero interior sections at emission;
-- pending energy, breaking, and foam remained unchanged before entry; and
-- packaged-build 1,000-front stress: 900 ticks in `28.359s` CPU (`31.7` ticks/s), below the 30-second
-  primary target; the load-calibrated gate has a fixed 34-second hard ceiling;
-- 10,000-front enlarged-world diagnostic: 30 ticks in `23.703s` CPU;
-- packaged smoke test: pass at tick 120 with one cross-sea phase emitted and 40 sections
-  pending outside the map;
-- representative rendered frame sample: `9.24ms` average / `16.64ms` p99, zero repeated
-  moving frames, and 14,895 dynamic vertices; and
+- pending energy, breaking, and foam remained unchanged before entry;
+- merchant reference: mass `96`, hull `16.5 x 5.2`, thirteen samples;
+- merchant 90-tick speed / 30-tick turn: `6.15 / 20.9 degrees`;
+- merchant crest contacts: one bow-only and one center hit, each exactly one event;
+- merchant land/rock/cargo footprint checks: `1 / 1 / 1`, while the same skiff center did not
+  collect the bow-positioned cargo;
+- merchant breaker damage/displacement: `2.395 / 0.99`, versus cutter `4.010 / 1.77`;
+- merchant spatial/brute comparison: 480/480 matching ticks;
+- packaged-build 1,000-front stress: 900 ticks in `28.938s` CPU (`31.1` ticks/s), below the
+  30-second target; the calibrated floor/hard ceiling are `32 / 34` seconds;
+- packaged merchant smoke test: pass at tick 120 with one cross-sea phase and 40 pending
+  boundary sections;
+- rendered merchant sample: `8.80ms` average / `13.04ms` p99, zero repeated moving frames,
+  and 15,156 dynamic vertices; and
 - all prior wave, vessel, collision, replay, source, target, and object regressions passed.
 
-See `BATCH19_TRUE_BOUNDARY_ENTRY.md` for the focused design record and
+See `BATCH20_LARGE_VESSEL_FOUNDATION.md` for the focused design record and
 `Documentation/CODEX_PROJECT_CONTEXT.md` for the compact working context.
 
 Build from PowerShell:
 
 ```powershell
-& 'C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.com' -batchmode -nographics -projectPath . -executeMethod WavePrototype.Editor.BatchBuild.BuildBatch19 -quit -logFile build-batch19.log
+& 'C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.com' -batchmode -nographics -projectPath . -executeMethod WavePrototype.Editor.BatchBuild.BuildBatch20 -quit -logFile build-batch20.log
 ```
 
 The packaged player also accepts `-smoketest`, `-frametest`, and `-capturepreview`.
-The preview mode writes separate skiff, heavy-cutter, and full-map PNGs beside the executable.
+The preview mode writes separate skiff, heavy-cutter, merchant, and full-map PNGs beside the
+executable.
 
 ## Playtest question
 
-Start the cross-sea with `N` and watch the northwest map edge in follow and map views. The
-first diagonal sections should enter from the boundary and progressively lengthen across the
-ocean; no complete diagonal line should appear between the central islands. Then sail through
-the later overlap and confirm that it retains Batch 18's ordered two-system feel.
+Press `Y` twice to take control of the merchant. Compare its acceleration and turning with the
+skiff, then navigate close to islands, rock clusters, floating objects, and crossing swell.
+Does the longer footprint and inertia feel like a genuinely larger vessel while remaining
+responsive enough for this arcade sea, or should its scale/handling move in either direction?

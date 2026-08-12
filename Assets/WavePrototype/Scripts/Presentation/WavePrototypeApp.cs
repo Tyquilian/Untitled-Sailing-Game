@@ -58,6 +58,7 @@ namespace WavePrototype.Presentation
             string[] arguments = System.Environment.GetCommandLineArgs();
             if (Array.Exists(arguments, value => string.Equals(value, "-smoketest", StringComparison.OrdinalIgnoreCase)))
             {
+                simulation.SetBoatProfile(simulation.PlayerBoatId, VesselProfileId.MerchantShip);
                 simulation.TriggerCrossSeaEvent();
                 for (int i = 0; i < 120; i++)
                 {
@@ -71,7 +72,7 @@ namespace WavePrototype.Presentation
                     Application.Quit(1);
                     return;
                 }
-                Debug.Log($"[WAVE-SMOKE] PASS batch=19 ticks={simulation.Tick} waves={simulation.Waves.Count}/{simulation.InitialWaveTarget} segments={simulation.ActiveWaveSegmentCount}/{simulation.TotalWaveSegmentCount} pending={simulation.PendingWaveSegmentCount} systems={simulation.SwellSystems.Count} sources={simulation.ActiveWaveSourceCount}/{simulation.WaveSources.Count} cross={simulation.CrossSeaEvent.Phase}/{simulation.CrossSeaEvent.EmittedPacketCount}/{simulation.CrossSeaEvent.ActivePacketCount} objects={simulation.FloatingObjects.Count} salvage={simulation.CollectedSalvageCount}/{simulation.CollectedSalvageValue:0} rocks={simulation.Environment.Rocks.Count} visits={simulation.Target.VisitCount} profile={simulation.Boats[0].Profile} spatial={spatial.WaveBoatExactChecks}/{spatial.WaveBoatPotentialChecks} hash={simulation.CalculateStateHash():X16}");
+                Debug.Log($"[WAVE-SMOKE] PASS batch=20 ticks={simulation.Tick} waves={simulation.Waves.Count}/{simulation.InitialWaveTarget} segments={simulation.ActiveWaveSegmentCount}/{simulation.TotalWaveSegmentCount} pending={simulation.PendingWaveSegmentCount} systems={simulation.SwellSystems.Count} sources={simulation.ActiveWaveSourceCount}/{simulation.WaveSources.Count} cross={simulation.CrossSeaEvent.Phase}/{simulation.CrossSeaEvent.EmittedPacketCount}/{simulation.CrossSeaEvent.ActivePacketCount} objects={simulation.FloatingObjects.Count} salvage={simulation.CollectedSalvageCount}/{simulation.CollectedSalvageValue:0} rocks={simulation.Environment.Rocks.Count} visits={simulation.Target.VisitCount} profile={simulation.Boats[0].Profile} spatial={spatial.WaveBoatExactChecks}/{spatial.WaveBoatPotentialChecks} hash={simulation.CalculateStateHash():X16}");
                 Application.Quit(0);
             }
             else if (Array.Exists(arguments, value => string.Equals(value, "-capturepreview", StringComparison.OrdinalIgnoreCase)))
@@ -89,11 +90,15 @@ namespace WavePrototype.Presentation
             automatedTestDrive = true;
             for (int i = 0; i < 90; i++) yield return null;
             string buildDirectory = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
-            CaptureCamera(Path.Combine(buildDirectory, "Batch19-preview.png"));
+            CaptureCamera(Path.Combine(buildDirectory, "Batch20-preview.png"));
             simulation.SetBoatProfile(simulation.PlayerBoatId, VesselProfileId.HeavyCutter);
             InitializeSnapshots();
             yield return null;
-            CaptureCamera(Path.Combine(buildDirectory, "Batch19-heavy-preview.png"));
+            CaptureCamera(Path.Combine(buildDirectory, "Batch20-heavy-preview.png"));
+            simulation.SetBoatProfile(simulation.PlayerBoatId, VesselProfileId.MerchantShip);
+            InitializeSnapshots();
+            yield return null;
+            CaptureCamera(Path.Combine(buildDirectory, "Batch20-merchant-preview.png"));
             simulation.TriggerCrossSeaEvent();
             // Capture the first phase while it is still growing through the northwest
             // boundary, rather than a later fully established cross-sea.
@@ -105,10 +110,10 @@ namespace WavePrototype.Presentation
             float previousSize = worldCamera.orthographicSize;
             worldCamera.transform.position = new Vector3(0f, 0f, -10f);
             worldCamera.orthographicSize = cameraController.GetMapViewSize();
-            CaptureCamera(Path.Combine(buildDirectory, "Batch19-map-preview.png"));
+            CaptureCamera(Path.Combine(buildDirectory, "Batch20-map-preview.png"));
             worldCamera.transform.position = previousPosition;
             worldCamera.orthographicSize = previousSize;
-            Debug.Log("[WAVE-PREVIEW] Captured Batch 19 skiff, heavy, and boundary-entry map previews in " + buildDirectory);
+            Debug.Log("[WAVE-PREVIEW] Captured Batch 20 skiff, cutter, merchant, and boundary-entry map previews in " + buildDirectory);
             Application.Quit(0);
         }
 
@@ -118,6 +123,7 @@ namespace WavePrototype.Presentation
             const int measuredFrames = 600;
             var samples = new float[measuredFrames];
             automatedTestDrive = true;
+            simulation.SetBoatProfile(simulation.PlayerBoatId, VesselProfileId.MerchantShip);
             simulation.TriggerCrossSeaEvent();
             for (int tick = 0; tick < 120; tick++) simulation.Step();
             InitializeSnapshots();
@@ -150,7 +156,7 @@ namespace WavePrototype.Presentation
             float average = total / measuredFrames;
             float p99 = samples[Mathf.Clamp(Mathf.CeilToInt(measuredFrames * 0.99f) - 1, 0, measuredFrames - 1)];
             float maximum = samples[measuredFrames - 1];
-            Debug.Log($"[WAVE-FRAME] batch=19 frames={measuredFrames} avgMs={average:0.00} p99Ms={p99:0.00} maxMs={maximum:0.00} gen0={gen0Collections} heapDelta={heapAfter - heapBefore} movingRepeats={repeatedMovingFrames} maxBoatStep={maximumRenderedStep:0.000} finalSpeed={renderedPlayer.Velocity.magnitude:0.00} cross={simulation.CrossSeaEvent.Phase}/{simulation.CrossSeaEvent.EmittedPacketCount}/{simulation.CrossSeaEvent.ActivePacketCount} pending={simulation.PendingWaveSegmentCount} staticVerts={oceanRenderer.StaticVertexCount} dynamicVerts={oceanRenderer.DynamicVertexCount}");
+            Debug.Log($"[WAVE-FRAME] batch=20 frames={measuredFrames} avgMs={average:0.00} p99Ms={p99:0.00} maxMs={maximum:0.00} gen0={gen0Collections} heapDelta={heapAfter - heapBefore} movingRepeats={repeatedMovingFrames} maxBoatStep={maximumRenderedStep:0.000} finalSpeed={renderedPlayer.Velocity.magnitude:0.00} cross={simulation.CrossSeaEvent.Phase}/{simulation.CrossSeaEvent.EmittedPacketCount}/{simulation.CrossSeaEvent.ActivePacketCount} pending={simulation.PendingWaveSegmentCount} staticVerts={oceanRenderer.StaticVertexCount} dynamicVerts={oceanRenderer.DynamicVertexCount}");
             Application.Quit(0);
         }
 
@@ -311,8 +317,19 @@ namespace WavePrototype.Presentation
         internal void TogglePlayerVesselProfile()
         {
             BoatData player = simulation.Boats[0];
-            VesselProfileId next = player.Profile == VesselProfileId.ArcadeSkiff
-                ? VesselProfileId.HeavyCutter : VesselProfileId.ArcadeSkiff;
+            VesselProfileId next;
+            switch (player.Profile)
+            {
+                case VesselProfileId.ArcadeSkiff:
+                    next = VesselProfileId.HeavyCutter;
+                    break;
+                case VesselProfileId.HeavyCutter:
+                    next = VesselProfileId.MerchantShip;
+                    break;
+                default:
+                    next = VesselProfileId.ArcadeSkiff;
+                    break;
+            }
             if (!simulation.SetBoatProfile(player.Id, next)) return;
             RefreshSnapshotsAfterExternalMutation();
             cameraController.Reset(simulation.Boats[0].Position);
@@ -484,8 +501,8 @@ namespace WavePrototype.Presentation
             }
 
             GUILayout.BeginArea(new Rect(16, 16, 380, debugOverlay ? 940 : 800), boxStyle);
-            GUILayout.Label("TACTICAL SAILING // BATCH 19", titleStyle);
-            GUILayout.Label("True-boundary swell entry laboratory", smallStyle);
+            GUILayout.Label("TACTICAL SAILING // BATCH 20", titleStyle);
+            GUILayout.Label("Large-vessel interaction laboratory", smallStyle);
             GUILayout.Space(9);
             GUILayout.Label(paused ? "PAUSED" : "UNDERWAY", valueStyle);
             GUILayout.Label($"Vessel       {VesselProfiles.GetLabel(player.Profile)}", valueStyle);
@@ -520,7 +537,9 @@ namespace WavePrototype.Presentation
                 player.Position + Vector2.up * 5f, VesselProfileId.ArcadeSkiff);
             if (GUILayout.Button("Heavy", buttonStyle)) SpawnBoat(
                 player.Position + Vector2.down * 6f, VesselProfileId.HeavyCutter);
-            if (GUILayout.Button("Switch Hull", buttonStyle)) TogglePlayerVesselProfile();
+            if (GUILayout.Button("Merchant", buttonStyle)) SpawnBoat(
+                player.Position + Vector2.right * 10f, VesselProfileId.MerchantShip);
+            if (GUILayout.Button("Cycle Hull", buttonStyle)) TogglePlayerVesselProfile();
             GUILayout.EndHorizontal();
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("Cargo", buttonStyle)) SpawnFloatingObject(
@@ -591,7 +610,7 @@ namespace WavePrototype.Presentation
             if (showHelp)
             {
                 const float width = 280f;
-                GUILayout.BeginArea(new Rect(Screen.width - width - 16, 16, width, 480), boxStyle);
+                GUILayout.BeginArea(new Rect(Screen.width - width - 16, 16, width, 505), boxStyle);
                 GUILayout.Label("CONTROLS", titleStyle);
                 GUILayout.Label("W / ↑      Forward", labelStyle);
                 GUILayout.Label("S / ↓       Brake / reverse", labelStyle);
@@ -603,7 +622,8 @@ namespace WavePrototype.Presentation
                 GUILayout.Label("Shift + Q     Local breaker burst (debug)", labelStyle);
                 GUILayout.Label("B             Skiff at cursor", labelStyle);
                 GUILayout.Label("Shift + B     Heavy cutter at cursor", labelStyle);
-                GUILayout.Label("Y             Switch player hull (debug)", labelStyle);
+                GUILayout.Label("Ctrl + B      Merchant ship at cursor", labelStyle);
+                GUILayout.Label("Y             Cycle player hull (debug)", labelStyle);
                 GUILayout.Label("N             Start / end cross-sea", labelStyle);
                 GUILayout.Label("C / X        Cargo / wreckage at cursor", labelStyle);
                 GUILayout.Label("T             Relocate target", labelStyle);

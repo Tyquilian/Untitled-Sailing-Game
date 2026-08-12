@@ -62,8 +62,8 @@ namespace WavePrototype.Editor
             const int comparisonTicks = 480;
             var broadphase = new WaveSimulation(seed, CreateSpatialProbeConfig(true));
             var bruteForce = new WaveSimulation(seed, CreateSpatialProbeConfig(false));
-            broadphase.SetBoatProfile(broadphase.PlayerBoatId, VesselProfileId.HeavyCutter);
-            bruteForce.SetBoatProfile(bruteForce.PlayerBoatId, VesselProfileId.HeavyCutter);
+            broadphase.SetBoatProfile(broadphase.PlayerBoatId, VesselProfileId.MerchantShip);
+            bruteForce.SetBoatProfile(bruteForce.PlayerBoatId, VesselProfileId.MerchantShip);
 
             long waveBoatExact = 0;
             long waveBoatPotential = 0;

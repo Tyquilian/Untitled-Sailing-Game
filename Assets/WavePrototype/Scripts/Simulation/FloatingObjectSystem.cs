@@ -112,11 +112,23 @@ namespace WavePrototype.Simulation
                 {
                     BoatData boat = boats[boatIndex];
                     VesselProfileDefinition profile = config.GetVesselProfile(boat.Profile);
-                    float contactRadius = profile.CollisionRadius +
+                    float contactRadius = profile.RockContactRadius +
                         (item.Kind == FloatingObjectKind.Cargo
                             ? config.CargoCollectionRadius : item.Radius);
-                    Vector2 offset = boat.Position - item.Position;
-                    if (offset.sqrMagnitude > contactRadius * contactRadius) continue;
+                    Vector2 offset = Vector2.zero;
+                    float nearestSquared = contactRadius * contactRadius;
+                    bool contacted = false;
+                    for (int sample = 0; sample < profile.EffectiveHullSampleCount; sample++)
+                    {
+                        Vector2 candidateOffset = VesselProfiles.GetHullSampleWorldPosition(
+                            boat, profile, sample) - item.Position;
+                        float distanceSquared = candidateOffset.sqrMagnitude;
+                        if (distanceSquared > nearestSquared) continue;
+                        nearestSquared = distanceSquared;
+                        offset = candidateOffset;
+                        contacted = true;
+                    }
+                    if (!contacted) continue;
 
                     if (item.Kind == FloatingObjectKind.Cargo)
                     {

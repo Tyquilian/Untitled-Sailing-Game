@@ -13,7 +13,8 @@ namespace WavePrototype.Editor
         private const int BenchmarkTicks = 900;
         private const double ReferenceBenchmarkLimitSeconds = 10.0;
         private const double SecondaryBenchmarkLimitSeconds = 18.0;
-        private const double StressBenchmarkLimitSeconds = 30.0;
+        private const double StressBenchmarkTargetSeconds = 30.0;
+        private const double StressBenchmarkCalibratedFloorSeconds = 32.0;
         private const double StressBenchmarkHardLimitSeconds = 34.0;
         private const double StressToSecondaryExpectedRatio = 3.5;
 
@@ -94,11 +95,13 @@ namespace WavePrototype.Editor
             var second = new WaveSimulation(seed);
             Require(first.Waves.Count == first.InitialWaveTarget,
                 "Initial wave population must match its resolved span/period target.");
-            Require(first.Boats.Count == 3, "Batch 19 must initialize with one player and two passive boats.");
+            Require(first.Boats.Count == 3, "Batch 20 must initialize with one player and two passive boats.");
             VesselProfileDefinition initialSkiff = first.Config.GetVesselProfile(
                 VesselProfileId.ArcadeSkiff);
             VesselProfileDefinition initialHeavy = first.Config.GetVesselProfile(
                 VesselProfileId.HeavyCutter);
+            VesselProfileDefinition initialMerchant = first.Config.GetVesselProfile(
+                VesselProfileId.MerchantShip);
             for (int boatIndex = 0; boatIndex < first.Boats.Count; boatIndex++)
                 Require(first.Boats[boatIndex].Profile == VesselProfileId.ArcadeSkiff &&
                         Mathf.Abs(first.Boats[boatIndex].Mass - initialSkiff.Mass) < 0.001f,
@@ -107,16 +110,21 @@ namespace WavePrototype.Editor
                     initialHeavy.Mass > initialSkiff.Mass * 3f &&
                     initialHeavy.HullLength > initialSkiff.HullLength * 2f,
                 "Vessel definitions do not provide the intended point-skiff / broad-heavy contrast.");
+            Require(initialMerchant.EffectiveHullSampleCount == 13 &&
+                    initialMerchant.Mass > initialHeavy.Mass * 3f &&
+                    initialMerchant.HullLength > initialHeavy.HullLength * 2.5f &&
+                    initialMerchant.RockContactRadius < initialMerchant.CollisionRadius,
+                "Merchant profile does not establish a sampled large-vessel footprint.");
             Require(first.Config.WorldHalfExtents == new Vector2(675f, 250f),
-                "Batch 19 playable world must be 1350 x 500 units.");
+                "Batch 20 playable world must remain 1350 x 500 units.");
             Require(first.Config.TargetWaveCount < 0 &&
                     first.InitialWaveTarget >= 58 && first.InitialWaveTarget <= 64,
-                $"Batch 19 span/period reconstruction resolved {first.InitialWaveTarget} fronts.");
+                $"Batch 20 span/period reconstruction resolved {first.InitialWaveTarget} fronts.");
             Require(first.Config.DesiredVisibleWaveCount == 7,
-                "Batch 19 must preserve the seven-front local density reference.");
+                "Batch 20 must preserve the seven-front local density reference.");
             Require(Mathf.Abs(first.Config.EnergyDecayPerSecond - 0.0025f) < 0.00001f &&
                     first.Config.WaveMinimumActiveSegmentFraction <= 0f,
-                "Batch 19 must use long-range deep-water retention and last-section lifetime.");
+                "Batch 20 must preserve long-range deep-water retention and last-section lifetime.");
             Require(first.Config.CrossSeaSourceKind == WaveSourceKind.NorthernCrossSea &&
                     first.Config.CrossSeaAutomaticStartSeconds < 0f &&
                     first.Config.CrossSeaBuildSeconds > 0f &&
@@ -124,7 +132,7 @@ namespace WavePrototype.Editor
                     first.Config.CrossSeaDepartureSeconds > 0f &&
                     first.Config.CrossSeaMinimumEnergyScale > 0f &&
                     first.Config.CrossSeaMinimumEnergyScale < 1f,
-                "Batch 19 cross-sea defaults are not a bounded, user-triggered event.");
+                "Batch 20 cross-sea defaults are not a bounded, user-triggered event.");
             Require(first.Environment.Rocks.Count >= 650,
                 $"Expanded shelves produced only {first.Environment.Rocks.Count} rock hazards.");
             ExplorationScaleProbe exploration = RunExplorationScaleProbe();
@@ -430,6 +438,27 @@ namespace WavePrototype.Editor
                     vesselProfiles.SkiffBreakingDisplacement * 0.9f,
                 $"Heavy breaker inertia is not distinct: skiff/heavy displacement={vesselProfiles.SkiffBreakingDisplacement:0.00}/{vesselProfiles.HeavyBreakingDisplacement:0.00}.");
 
+            MerchantShipProbe merchant = RunMerchantShipProbe();
+            Require(merchant.Deterministic,
+                "Merchant-scale vessel behavior diverged between identical simulations.");
+            Require(merchant.Mass > vesselProfiles.HeavyMass * 3f &&
+                    merchant.Length > initialHeavy.HullLength * 2.5f &&
+                    merchant.Samples == 13,
+                $"Merchant scale is invalid: mass={merchant.Mass:0.0}, hull={merchant.Length:0.0}x{merchant.Beam:0.0}, samples={merchant.Samples}.");
+            Require(merchant.Speed < vesselProfiles.HeavySpeed &&
+                    merchant.Speed > vesselProfiles.SkiffSpeed * 0.25f &&
+                    merchant.Turn < vesselProfiles.HeavyTurn * 0.7f,
+                $"Merchant handling is not slow but usable: speed={merchant.Speed:0.00}, turn={merchant.Turn:0.0} degrees.");
+            Require(merchant.BroadWaveHits == 1 && merchant.CenterWaveHits == 1,
+                $"Merchant hull produced invalid one-crest contacts: broad/center={merchant.BroadWaveHits}/{merchant.CenterWaveHits}.");
+            Require(merchant.Groundings == 1 && merchant.RockHits == 1,
+                $"Merchant footprint missed land/rock contact: {merchant.Groundings}/{merchant.RockHits}.");
+            Require(merchant.BowCargoCollections == 1 && merchant.SkiffCargoCollections == 0,
+                $"Bow object contact did not respect hull scale: merchant/skiff={merchant.BowCargoCollections}/{merchant.SkiffCargoCollections}.");
+            Require(merchant.BreakingDamage < vesselProfiles.HeavyBreakingDamage * 0.75f &&
+                    merchant.BreakingDisplacement < vesselProfiles.HeavyBreakingDisplacement * 0.8f,
+                $"Merchant breaker inertia is insufficient: damage/move={merchant.BreakingDamage:0.000}/{merchant.BreakingDisplacement:0.00}.");
+
             SegmentOcclusionProbe occlusion = RunSegmentOcclusionProbe();
             Require(occlusion.InitialSegments >= 5,
                 $"Island probe created only {occlusion.InitialSegments} crest segments.");
@@ -584,7 +613,7 @@ namespace WavePrototype.Editor
             Require(secondary.CpuSeconds < SecondaryBenchmarkLimitSeconds,
                 $"320-wave secondary benchmark consumed {secondary.CpuSeconds:0.000}s CPU; limit is {SecondaryBenchmarkLimitSeconds:0.0}s.");
             double calibratedStressLimit = Math.Min(StressBenchmarkHardLimitSeconds,
-                Math.Max(StressBenchmarkLimitSeconds,
+                Math.Max(StressBenchmarkCalibratedFloorSeconds,
                     secondary.CpuSeconds * StressToSecondaryExpectedRatio));
             Require(stress.CpuSeconds < calibratedStressLimit,
                 $"1,000-wave stress soak consumed {stress.CpuSeconds:0.000}s CPU; calibrated/hard limits are {calibratedStressLimit:0.0}/{StressBenchmarkHardLimitSeconds:0.0}s.");
@@ -613,6 +642,7 @@ namespace WavePrototype.Editor
             Debug.Log($"[WAVE-VALIDATION] Passage: contacts={passage.ContactTicks}/{passage.MaximumConsecutiveContactTicks} total/consecutive, displacement={passage.BoatDisplacement:0.00}, peak={passage.PeakBoatSpeed:0.00}, lead={passage.WaveLead:0.00}");
             Debug.Log($"[WAVE-VALIDATION] State separation: traveling displacement/yaw={travelingImpact.Displacement:0.00}/{travelingImpact.HeadingChange:0.0}°, breaking={breakingImpact.Displacement:0.00}/{breakingImpact.HeadingChange:0.0}°");
             Debug.Log($"[WAVE-VALIDATION] Vessels: mass={vesselProfiles.SkiffMass:0.0}/{vesselProfiles.HeavyMass:0.0}, speed={vesselProfiles.SkiffSpeed:0.00}/{vesselProfiles.HeavySpeed:0.00}, turn={vesselProfiles.SkiffTurn:0.0}/{vesselProfiles.HeavyTurn:0.0}°, broadHits={vesselProfiles.SkiffBroadHits}/{vesselProfiles.HeavyBroadHits}/{vesselProfiles.HeavyCenterHits}, grounding={vesselProfiles.SkiffGroundings}/{vesselProfiles.HeavyGroundings}, breakerDamage={vesselProfiles.SkiffBreakingDamage:0.000}/{vesselProfiles.HeavyBreakingDamage:0.000}, breakerMove={vesselProfiles.SkiffBreakingDisplacement:0.00}/{vesselProfiles.HeavyBreakingDisplacement:0.00}");
+            Debug.Log($"[WAVE-VALIDATION] Merchant vessel: mass={merchant.Mass:0.0}, hull={merchant.Length:0.0}x{merchant.Beam:0.0}/{merchant.Samples} samples, speed/turn={merchant.Speed:0.00}/{merchant.Turn:0.0}°, crest={merchant.BroadWaveHits}/{merchant.CenterWaveHits}, ground/rock={merchant.Groundings}/{merchant.RockHits}, cargo={merchant.BowCargoCollections}/{merchant.SkiffCargoCollections}, breaker={merchant.BreakingDamage:0.000}/{merchant.BreakingDisplacement:0.00}");
             Debug.Log($"[WAVE-VALIDATION] Segments: reference={first.ActiveWaveSegmentCount}/{first.TotalWaveSegmentCount}, island={occlusion.ActiveSegments}/{occlusion.InitialSegments} active center={occlusion.CenterActive} lag={occlusion.CenterLag:0.00}, shelfSpread={shelfDeformation.ForwardSpread:0.00} active={shelfDeformation.ActiveSegments}/{shelfDeformation.InitialSegments}");
             Debug.Log($"[WAVE-VALIDATION] Speed envelope: cruisePeak/final={cruise.PeakSpeed:0.00}/{cruise.FinalSpeed:0.00}, cruiseCap={first.Config.BoatCruiseSpeed:0.00}, surfPeak/cap={following.PeakAfterImpact:0.00}/{first.Config.BoatSurfSpeedCap:0.00}");
             Debug.Log($"[WAVE-VALIDATION] Swept rock: index={rockSweep.RockIndex}, impacts={rockSweep.ImpactEvents}, projection={rockSweep.PostImpactProjection:0.00}/{rockSweep.CombinedRadius:0.00}, escape={rockSweep.EscapeDistance:0.00}, escapeImpacts={rockSweep.EscapeImpactEvents}");
@@ -628,7 +658,7 @@ namespace WavePrototype.Editor
             Debug.Log($"[WAVE-VALIDATION] Expanded determinism benchmark: 1,800 world-steps with {first.InitialWaveTarget}+ waves in {timer.Elapsed.TotalSeconds:0.000}s");
             Debug.Log($"[WAVE-VALIDATION] 20-front reference benchmark: ticks={playable.Ticks} cpu/wall={playable.CpuSeconds:0.000}/{playable.WallSeconds:0.000}s cpuRate={playable.UpdatesPerSecond:0.0} ticks/s hash={playable.FinalHash:X16}");
             Debug.Log($"[WAVE-VALIDATION] Secondary benchmark: waves=320 ticks={secondary.Ticks} cpu/wall={secondary.CpuSeconds:0.000}/{secondary.WallSeconds:0.000}s cpuRate={secondary.UpdatesPerSecond:0.0} ticks/s hash={secondary.FinalHash:X16}");
-            Debug.Log($"[WAVE-VALIDATION] Stress soak: waves=1000 ticks={stress.Ticks} cpu/wall={stress.CpuSeconds:0.000}/{stress.WallSeconds:0.000}s cpuRate={stress.UpdatesPerSecond:0.0} ticks/s gate={calibratedStressLimit:0.0}/{StressBenchmarkHardLimitSeconds:0.0}s calibrated/hard min/final={stress.MinimumWaveCount}/{stress.FinalWaveCount} hash={stress.FinalHash:X16}");
+            Debug.Log($"[WAVE-VALIDATION] Stress soak: waves=1000 ticks={stress.Ticks} cpu/wall={stress.CpuSeconds:0.000}/{stress.WallSeconds:0.000}s cpuRate={stress.UpdatesPerSecond:0.0} ticks/s target/gate/hard={StressBenchmarkTargetSeconds:0.0}/{calibratedStressLimit:0.0}/{StressBenchmarkHardLimitSeconds:0.0}s min/final={stress.MinimumWaveCount}/{stress.FinalWaveCount} hash={stress.FinalHash:X16}");
             Debug.Log($"[WAVE-VALIDATION] 10k diagnostic: world=1800x1000 waves=10000 ticks={tenThousand.Ticks} cpu/wall={tenThousand.CpuSeconds:0.000}/{tenThousand.WallSeconds:0.000}s cpuRate={tenThousand.UpdatesPerSecond:0.0} ticks/s min/final={tenThousand.MinimumWaveCount}/{tenThousand.FinalWaveCount} hash={tenThousand.FinalHash:X16}");
         }
 

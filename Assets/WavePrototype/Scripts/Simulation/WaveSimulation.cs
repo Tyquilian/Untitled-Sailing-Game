@@ -190,7 +190,7 @@ namespace WavePrototype.Simulation
         {
             VesselProfileDefinition profile = runtimeConfig.GetVesselProfile(profileId);
             if (boatMotionSystem.HullIntersectsLand(position, heading, profile) ||
-                Environment.FindRock(position, profile.CollisionRadius) >= 0)
+                boatMotionSystem.HullIntersectsRock(position, heading, profile))
                 position = boatMotionSystem.FindNearbyWater(position, heading, profile);
             int id = nextBoatId++;
             boats.Add(new BoatData
@@ -215,7 +215,7 @@ namespace WavePrototype.Simulation
             boat.Profile = profile.Id;
             boat.Mass = profile.Mass;
             if (boatMotionSystem.HullIntersectsLand(boat.Position, boat.Heading, profile) ||
-                Environment.FindRock(boat.Position, profile.CollisionRadius) >= 0)
+                boatMotionSystem.HullIntersectsRock(boat.Position, boat.Heading, profile))
             {
                 boat.Position = boatMotionSystem.FindNearbyWater(boat.Position, boat.Heading, profile);
                 boat.Velocity = Vector2.zero;
@@ -709,6 +709,7 @@ namespace WavePrototype.Simulation
             Mix(ref hash, unchecked((uint)Config.PendingInputCompactionThreshold));
             MixVesselProfile(ref hash, Config.ArcadeSkiffProfile);
             MixVesselProfile(ref hash, Config.HeavyCutterProfile);
+            MixVesselProfile(ref hash, Config.MerchantShipProfile);
             Mix(ref hash, (uint)Config.CrossSeaSourceKind);
             MixFloat(ref hash, Config.CrossSeaAutomaticStartSeconds);
             MixFloat(ref hash, Config.CrossSeaBuildSeconds);
@@ -737,6 +738,7 @@ namespace WavePrototype.Simulation
             MixFloat(ref hash, profile.HullLength);
             MixFloat(ref hash, profile.HullBeam);
             MixFloat(ref hash, profile.CollisionRadius);
+            MixFloat(ref hash, profile.RockContactRadius);
             Mix(ref hash, unchecked((uint)profile.HullSampleCount));
             MixFloat(ref hash, profile.PropulsionScale);
             MixFloat(ref hash, profile.TurnRateScale);

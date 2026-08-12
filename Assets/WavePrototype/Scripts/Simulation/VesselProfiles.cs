@@ -6,7 +6,8 @@ namespace WavePrototype.Simulation
     public enum VesselProfileId : byte
     {
         ArcadeSkiff,
-        HeavyCutter
+        HeavyCutter,
+        MerchantShip
     }
 
     /// <summary>
@@ -21,6 +22,7 @@ namespace WavePrototype.Simulation
         public readonly float HullLength;
         public readonly float HullBeam;
         public readonly float CollisionRadius;
+        public readonly float RockContactRadius;
         public readonly int HullSampleCount;
         public readonly float PropulsionScale;
         public readonly float TurnRateScale;
@@ -33,16 +35,18 @@ namespace WavePrototype.Simulation
         public readonly float DamageTakenScale;
 
         public VesselProfileDefinition(VesselProfileId id, float mass, float hullLength,
-            float hullBeam, float collisionRadius, int hullSampleCount, float propulsionScale,
-            float turnRateScale, float cruiseSpeedScale, float surfSpeedScale,
-            float linearDragScale, float lateralDragScale, float waveForceScale,
-            float waveYawScale, float damageTakenScale)
+            float hullBeam, float collisionRadius, float rockContactRadius,
+            int hullSampleCount, float propulsionScale, float turnRateScale,
+            float cruiseSpeedScale, float surfSpeedScale, float linearDragScale,
+            float lateralDragScale, float waveForceScale, float waveYawScale,
+            float damageTakenScale)
         {
             Id = id;
             Mass = mass;
             HullLength = hullLength;
             HullBeam = hullBeam;
             CollisionRadius = collisionRadius;
+            RockContactRadius = rockContactRadius;
             HullSampleCount = hullSampleCount;
             PropulsionScale = propulsionScale;
             TurnRateScale = turnRateScale;
@@ -61,7 +65,26 @@ namespace WavePrototype.Simulation
         /// </summary>
         public Vector2 GetHullSampleOffset(int index)
         {
-            if (index <= 0 || HullSampleCount <= 1) return Vector2.zero;
+            if (index <= 0 || EffectiveHullSampleCount <= 1) return Vector2.zero;
+            if (EffectiveHullSampleCount > 5)
+            {
+                switch (index)
+                {
+                    case 1: return new Vector2(HullLength * 0.46f, 0f);
+                    case 2: return new Vector2(-HullLength * 0.42f, 0f);
+                    case 3: return new Vector2(HullLength * 0.28f, HullBeam * 0.42f);
+                    case 4: return new Vector2(HullLength * 0.28f, -HullBeam * 0.42f);
+                    case 5: return new Vector2(0f, HullBeam * 0.48f);
+                    case 6: return new Vector2(0f, -HullBeam * 0.48f);
+                    case 7: return new Vector2(-HullLength * 0.28f, HullBeam * 0.42f);
+                    case 8: return new Vector2(-HullLength * 0.28f, -HullBeam * 0.42f);
+                    case 9: return new Vector2(HullLength * 0.43f, HullBeam * 0.24f);
+                    case 10: return new Vector2(HullLength * 0.43f, -HullBeam * 0.24f);
+                    case 11: return new Vector2(-HullLength * 0.40f, HullBeam * 0.24f);
+                    case 12: return new Vector2(-HullLength * 0.40f, -HullBeam * 0.24f);
+                    default: return Vector2.zero;
+                }
+            }
             switch (index)
             {
                 case 1: return new Vector2(HullLength * 0.38f, 0f);
@@ -72,12 +95,14 @@ namespace WavePrototype.Simulation
             }
         }
 
+        public int EffectiveHullSampleCount => Mathf.Clamp(HullSampleCount, 1, 13);
+
         public float MaximumHullSampleDistance
         {
             get
             {
                 float maximum = 0f;
-                for (int sample = 0; sample < Mathf.Max(1, HullSampleCount); sample++)
+                for (int sample = 0; sample < EffectiveHullSampleCount; sample++)
                     maximum = Mathf.Max(maximum, GetHullSampleOffset(sample).magnitude);
                 return maximum;
             }
@@ -89,6 +114,7 @@ namespace WavePrototype.Simulation
             hullLength: 2.95f,
             hullBeam: 1.64f,
             collisionRadius: 0.72f,
+            rockContactRadius: 0.72f,
             hullSampleCount: 1,
             propulsionScale: 1f,
             turnRateScale: 1f,
@@ -106,6 +132,7 @@ namespace WavePrototype.Simulation
             hullLength: 6.2f,
             hullBeam: 2.8f,
             collisionRadius: 1.5f,
+            rockContactRadius: 0.82f,
             hullSampleCount: 5,
             propulsionScale: 2.3f,
             turnRateScale: 0.55f,
@@ -116,6 +143,24 @@ namespace WavePrototype.Simulation
             waveForceScale: 1.8f,
             waveYawScale: 0.45f,
             damageTakenScale: 0.48f);
+
+        public static VesselProfileDefinition MerchantShip => new VesselProfileDefinition(
+            VesselProfileId.MerchantShip,
+            mass: 96f,
+            hullLength: 16.5f,
+            hullBeam: 5.2f,
+            collisionRadius: 2.6f,
+            rockContactRadius: 0.92f,
+            hullSampleCount: 13,
+            propulsionScale: 7.4f,
+            turnRateScale: 0.3f,
+            cruiseSpeedScale: 0.68f,
+            surfSpeedScale: 0.58f,
+            linearDragScale: 0.7f,
+            lateralDragScale: 1.58f,
+            waveForceScale: 4.2f,
+            waveYawScale: 0.22f,
+            damageTakenScale: 0.25f);
     }
 
     public static class VesselProfiles
@@ -133,6 +178,7 @@ namespace WavePrototype.Simulation
         {
             switch (id)
             {
+                case VesselProfileId.MerchantShip: return "MERCHANT SHIP";
                 case VesselProfileId.HeavyCutter: return "HEAVY CUTTER";
                 default: return "ARCADE SKIFF";
             }

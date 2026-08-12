@@ -28,6 +28,9 @@ The environment is the central gameplay system. Waves, bathymetry, islands, reef
 - Larger and heavier player vessels are an intended capability. Batch 14 establishes an
   arcade-skiff baseline and a heavy-cutter comparison profile. Broad hulls sample multiple
   representative points while retaining one force contribution per crest identity.
+- Batch 20 extends that capability to a merchant-scale 16.5 x 5.2 hull with thirteen
+  representative samples. Land, rocks, waves, cargo, and wreckage may contact the extended
+  footprint, but one crest still contributes only once and the arcade controls do not change.
 - One optional roaming target marker with an adjustable visit radius and simple visit counter is allowed as lightweight exploration structure. It is not a buoy course, checkpoint chain, timer, score, physical obstacle, or forced objective.
 - Propulsion cruise speed and wave-enabled surf speed are separate concepts. Waves may temporarily push a boat beyond its propulsion cruise speed.
 - Non-breaking swell should pass beneath and overtake a stationary hull rather than behave as a persistent moving force wall. Strong sustained displacement, yaw, surfing, and damage should be concentrated in energetic breaking encounters.
@@ -125,6 +128,10 @@ The environment is the central gameplay system. Waves, bathymetry, islands, reef
     world corner and keep off-map crest sections in a mechanically inert pending-entry state
     until each trajectory crosses the boundary. The western carrier, map, islands, shelves,
     event cadence, and player controls remain unchanged.
+15. Batch 20 establishes merchant-scale vessel support without naval gameplay. A third
+    immutable profile, thirteen-point hull footprint, sampled swept-rock contact, object
+    contact, automatic camera framing, and deterministic comparison probes exercise large
+    ships while preserving one interaction per crest identity.
 
 ## Architectural principles retained from v1.0
 

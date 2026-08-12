@@ -73,7 +73,9 @@ namespace WavePrototype.Presentation
                     ref lookAheadVelocity, 0.22f, 32f, deltaTime);
                 target = new Vector3(player.Position.x + smoothedLookAhead.x,
                     player.Position.y + smoothedLookAhead.y, -10f);
-                targetZoom = followZoom;
+                VesselProfileDefinition profile = config.GetVesselProfile(player.Profile);
+                float hullFramingZoom = profile.HullLength * 1.8f + 2f;
+                targetZoom = Mathf.Max(followZoom, hullFramingZoom);
             }
 
             // Clamp against the larger zoom during transitions so a still-wide viewport

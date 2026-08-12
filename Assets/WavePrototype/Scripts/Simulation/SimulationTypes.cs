@@ -414,6 +414,7 @@ namespace WavePrototype.Simulation
         public int PendingInputCompactionThreshold = 1024;
         public VesselProfileDefinition ArcadeSkiffProfile = VesselProfileDefinition.ArcadeSkiff;
         public VesselProfileDefinition HeavyCutterProfile = VesselProfileDefinition.HeavyCutter;
+        public VesselProfileDefinition MerchantShipProfile = VesselProfileDefinition.MerchantShip;
         public bool EnableSpatialBroadphase = true;
         public float SpatialWaveCellSize = 16f;
 
@@ -452,7 +453,14 @@ namespace WavePrototype.Simulation
         internal SimulationConfig Clone() => (SimulationConfig)MemberwiseClone();
 
         internal VesselProfileDefinition GetVesselProfile(VesselProfileId id)
-            => id == VesselProfileId.HeavyCutter ? HeavyCutterProfile : ArcadeSkiffProfile;
+        {
+            switch (id)
+            {
+                case VesselProfileId.MerchantShip: return MerchantShipProfile;
+                case VesselProfileId.HeavyCutter: return HeavyCutterProfile;
+                default: return ArcadeSkiffProfile;
+            }
+        }
     }
 
     /// <summary>
@@ -530,6 +538,7 @@ namespace WavePrototype.Simulation
         public readonly int PendingInputCompactionThreshold;
         public readonly VesselProfileDefinition ArcadeSkiffProfile;
         public readonly VesselProfileDefinition HeavyCutterProfile;
+        public readonly VesselProfileDefinition MerchantShipProfile;
         public readonly bool EnableSpatialBroadphase;
         public readonly float SpatialWaveCellSize;
         public readonly WaveSourceKind CrossSeaSourceKind;
@@ -624,6 +633,7 @@ namespace WavePrototype.Simulation
             PendingInputCompactionThreshold = source.PendingInputCompactionThreshold;
             ArcadeSkiffProfile = source.ArcadeSkiffProfile;
             HeavyCutterProfile = source.HeavyCutterProfile;
+            MerchantShipProfile = source.MerchantShipProfile;
             EnableSpatialBroadphase = source.EnableSpatialBroadphase;
             SpatialWaveCellSize = source.SpatialWaveCellSize;
             CrossSeaSourceKind = source.CrossSeaSourceKind;
@@ -648,6 +658,13 @@ namespace WavePrototype.Simulation
         }
 
         public VesselProfileDefinition GetVesselProfile(VesselProfileId id)
-            => id == VesselProfileId.HeavyCutter ? HeavyCutterProfile : ArcadeSkiffProfile;
+        {
+            switch (id)
+            {
+                case VesselProfileId.MerchantShip: return MerchantShipProfile;
+                case VesselProfileId.HeavyCutter: return HeavyCutterProfile;
+                default: return ArcadeSkiffProfile;
+            }
+        }
     }
 }

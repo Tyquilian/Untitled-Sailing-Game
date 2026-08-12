@@ -114,7 +114,8 @@ namespace WavePrototype.Presentation
             {
                 player = snapshots.GetPlayer(simulation, alpha);
                 VesselProfileDefinition playerProfile = simulation.Config.GetVesselProfile(player.Profile);
-                float highlightRadius = Mathf.Max(2.05f, playerProfile.CollisionRadius + 0.65f);
+                float highlightRadius = Mathf.Max(2.05f,
+                    playerProfile.MaximumHullSampleDistance + playerProfile.RockContactRadius);
                 AddCircle(dynamicVertices, dynamicColors, dynamicTriangles, player.Position, highlightRadius,
                     new Color(1f, 0.62f, 0.08f, 0.16f), 0.1f, 20);
                 if (showTargetBearing && simulation.Target.Enabled)
@@ -438,30 +439,63 @@ namespace WavePrototype.Presentation
             Vector2 side = new Vector2(-forward.y, forward.x);
             Color hull = boat.Health > 35f
                 ? (player ? new Color(1f, 0.55f, 0.08f)
+                    : boat.Profile == VesselProfileId.MerchantShip
+                        ? new Color(0.36f, 0.47f, 0.52f)
                     : boat.Profile == VesselProfileId.HeavyCutter
                         ? new Color(0.48f, 0.58f, 0.59f)
                         : new Color(0.78f, 0.66f, 0.38f))
                 : new Color(0.9f, 0.12f, 0.08f);
-            AddTriangle(dynamicVertices, dynamicColors, dynamicTriangles,
-                boat.Position + forward * (profile.HullLength * 0.593f),
-                boat.Position - forward * (profile.HullLength * 0.407f) +
-                    side * (profile.HullBeam * 0.5f),
-                boat.Position - forward * (profile.HullLength * 0.407f) -
-                    side * (profile.HullBeam * 0.5f),
-                hull, 0.025f);
             Color sail = player ? new Color(1f, 0.92f, 0.72f, 0.95f)
                 : new Color(0.78f, 0.84f, 0.78f, 0.86f);
-            AddTriangle(dynamicVertices, dynamicColors, dynamicTriangles,
-                boat.Position + forward * (profile.HullLength * 0.322f),
-                boat.Position - forward * (profile.HullLength * 0.244f) +
-                    side * (profile.HullBeam * 0.11f),
-                boat.Position - forward * (profile.HullLength * 0.231f) +
-                    side * (profile.HullBeam * 0.659f),
-                sail, 0.015f);
+            if (boat.Profile == VesselProfileId.MerchantShip)
+            {
+                Vector2 bow = boat.Position + forward * (profile.HullLength * 0.52f);
+                Vector2 forwardPort = boat.Position + forward * (profile.HullLength * 0.25f) +
+                    side * (profile.HullBeam * 0.5f);
+                Vector2 forwardStarboard = boat.Position + forward * (profile.HullLength * 0.25f) -
+                    side * (profile.HullBeam * 0.5f);
+                Vector2 sternPort = boat.Position - forward * (profile.HullLength * 0.46f) +
+                    side * (profile.HullBeam * 0.42f);
+                Vector2 sternStarboard = boat.Position - forward * (profile.HullLength * 0.46f) -
+                    side * (profile.HullBeam * 0.42f);
+                AddTriangle(dynamicVertices, dynamicColors, dynamicTriangles,
+                    bow, forwardPort, forwardStarboard, hull, 0.025f);
+                AddTriangle(dynamicVertices, dynamicColors, dynamicTriangles,
+                    forwardPort, sternPort, forwardStarboard, hull, 0.025f);
+                AddTriangle(dynamicVertices, dynamicColors, dynamicTriangles,
+                    forwardStarboard, sternPort, sternStarboard, hull, 0.025f);
+                AddTriangle(dynamicVertices, dynamicColors, dynamicTriangles,
+                    boat.Position + forward * (profile.HullLength * 0.27f),
+                    boat.Position + forward * (profile.HullLength * 0.03f) +
+                        side * (profile.HullBeam * 0.08f),
+                    boat.Position + forward * (profile.HullLength * 0.04f) +
+                        side * (profile.HullBeam * 0.92f), sail, 0.015f);
+                AddTriangle(dynamicVertices, dynamicColors, dynamicTriangles,
+                    boat.Position - forward * (profile.HullLength * 0.03f),
+                    boat.Position - forward * (profile.HullLength * 0.29f) +
+                        side * (profile.HullBeam * 0.06f),
+                    boat.Position - forward * (profile.HullLength * 0.28f) +
+                        side * (profile.HullBeam * 0.82f), sail, 0.015f);
+            }
+            else
+            {
+                AddTriangle(dynamicVertices, dynamicColors, dynamicTriangles,
+                    boat.Position + forward * (profile.HullLength * 0.593f),
+                    boat.Position - forward * (profile.HullLength * 0.407f) +
+                        side * (profile.HullBeam * 0.5f),
+                    boat.Position - forward * (profile.HullLength * 0.407f) -
+                        side * (profile.HullBeam * 0.5f), hull, 0.025f);
+                AddTriangle(dynamicVertices, dynamicColors, dynamicTriangles,
+                    boat.Position + forward * (profile.HullLength * 0.322f),
+                    boat.Position - forward * (profile.HullLength * 0.244f) +
+                        side * (profile.HullBeam * 0.11f),
+                    boat.Position - forward * (profile.HullLength * 0.231f) +
+                        side * (profile.HullBeam * 0.659f), sail, 0.015f);
+            }
 
             if (!debugOverlay) return;
             Color sampleColor = new Color(1f, 0.3f, 0.12f, 0.78f);
-            for (int sample = 0; sample < Mathf.Max(1, profile.HullSampleCount); sample++)
+            for (int sample = 0; sample < profile.EffectiveHullSampleCount; sample++)
             {
                 Vector2 samplePosition = VesselProfiles.GetHullSampleWorldPosition(
                     boat, profile, sample);
